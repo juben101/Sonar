@@ -6,42 +6,89 @@ import Footer from "../../components/Footer";
 import PageLayout from "../../components/PageLayout";
 import "./ResultPage.css";
 
+const LANGUAGE_OPTIONS = [
+  "English", "Hindi", "Spanish", "Korean", "Japanese",
+  "French", "Tamil", "Telugu", "Punjabi", "Arabic",
+  "Portuguese", "German", "Italian", "Mandarin",
+];
+
 export default function ResultPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const analysisData = location.state?.analysis;
 
-  const [preference, setPreference] = useState(null); // "match" | "uplift" | null
-  const [playlist, setPlaylist] = useState(null);
-  const [loadingPlaylist, setLoadingPlaylist] = useState(false);
-  const playlistRef = useRef(null);
+  const [preference, setPreference] = useState(null); // "match" | "uplift"
+  const [languages, setLanguages] = useState(["English"]);
+  const [artistInput, setArtistInput] = useState("");
+  const [intensity, setIntensity] = useState(50);
+  const [trackCount, setTrackCount] = useState(15);
+  const [generating, setGenerating] = useState(false);
 
-  // Redirect if no analysis data (direct URL visit)
+  const customRef = useRef(null);
+
+  // Redirect if no analysis data
   useEffect(() => {
     if (!analysisData) {
       navigate("/analyze", { replace: true });
     }
   }, [analysisData, navigate]);
 
-  // Fetch playlist when user picks preference
-  const handlePreference = async (pref) => {
-    setPreference(pref);
-    setLoadingPlaylist(true);
+  // Scroll to customization when preference selected
+  useEffect(() => {
+    if (preference) {
+      setTimeout(() => {
+        customRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+  }, [preference]);
+
+  const toggleLanguage = (lang) => {
+    setLanguages((prev) =>
+      prev.includes(lang)
+        ? prev.filter((l) => l !== lang)
+        : [...prev, lang]
+    );
+  };
+
+  const handleGenerate = async () => {
+    if (languages.length === 0) return;
+    setGenerating(true);
+
     try {
-      const data = await moodApi.playlist(analysisData.dimensions, pref);
-      setPlaylist(data);
+      const artists = artistInput
+        .split(",")
+        .map((a) => a.trim())
+        .filter(Boolean);
+
+      const data = await moodApi.playlist(
+        analysisData.dimensions,
+        preference,
+        languages,
+        artists,
+        intensity,
+        trackCount
+      );
+
+      navigate("/playlist", {
+        state: {
+          playlist: data,
+          analysis: analysisData,
+          preference,
+          settings: { languages, artists, intensity, trackCount },
+        },
+      });
     } catch {
-      // Fallback — still show something
-      setPlaylist({
-        title: pref === "uplift" ? "Silver Linings" : "Midnight Drift",
-        tracks: [],
+      // Fallback
+      navigate("/playlist", {
+        state: {
+          playlist: { title: "Sonar Mix", tracks: [] },
+          analysis: analysisData,
+          preference,
+          settings: { languages, artists: [], intensity, trackCount },
+        },
       });
     } finally {
-      setLoadingPlaylist(false);
-      // Scroll to playlist after render
-      setTimeout(() => {
-        playlistRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
+      setGenerating(false);
     }
   };
 
@@ -49,7 +96,6 @@ export default function ResultPage() {
 
   const { mood, moodEmoji, nuance, sentiment, confidence, explanation, dimensions } = analysisData;
 
-  // Sentiment color mapping
   const sentimentColors = {
     Positive: { bg: "rgba(74, 222, 128, 0.08)", border: "rgba(74, 222, 128, 0.25)", text: "#4ade80" },
     Negative: { bg: "rgba(255, 60, 100, 0.08)", border: "rgba(255, 60, 100, 0.25)", text: "#ff6b8a" },
@@ -58,6 +104,8 @@ export default function ResultPage() {
   };
   const sc = sentimentColors[sentiment] || sentimentColors.Neutral;
 
+  const intensityLabel = intensity < 33 ? "Soft" : intensity < 66 ? "Balanced" : "Strong";
+
   return (
     <PageLayout>
       <Navbar centerLabel="Analysis" showBack backTo="/analyze" />
@@ -65,13 +113,12 @@ export default function ResultPage() {
       <main className="rp-main">
         <div className="rp-content">
 
-          {/* ── Section: Your Emotional State ── */}
+          {/* ── Emotion Analysis ── */}
           <section className="rp-emotion-section">
             <div className="rp-section-badge">ANALYSIS COMPLETE</div>
             <h1 className="rp-section-title">Your emotional state</h1>
             <p className="rp-section-subtitle">Here's what we detected from what you shared.</p>
 
-            {/* 3 Emotion Cards */}
             <div className="rp-emotion-cards">
               <div className="rp-card">
                 <div className="rp-card-emoji">{moodEmoji}</div>
@@ -90,7 +137,6 @@ export default function ResultPage() {
               </div>
             </div>
 
-            {/* Confidence */}
             <div className="rp-confidence">
               <div className="rp-confidence-header">
                 <span className="rp-confidence-label">Confidence</span>
@@ -102,13 +148,13 @@ export default function ResultPage() {
             </div>
           </section>
 
-          {/* ── Section: Explanation ── */}
+          {/* ── Explanation ── */}
           <section className="rp-explanation-section">
             <h2 className="rp-explanation-title">Why this emotion?</h2>
             <p className="rp-explanation-text">{explanation}</p>
           </section>
 
-          {/* ── Section: Emotional Spectrum ── */}
+          {/* ── Emotional Spectrum ── */}
           <section className="rp-spectrum-section">
             <h2 className="rp-spectrum-title">Emotional spectrum</h2>
             <div className="rp-dimensions">
@@ -119,87 +165,129 @@ export default function ResultPage() {
                     <span className="rp-dim-val">{d.value}%</span>
                   </div>
                   <div className="rp-dim-track">
-                    <div
-                      className="rp-dim-fill"
-                      style={{ width: `${d.value}%`, background: d.color }}
-                    />
+                    <div className="rp-dim-fill" style={{ width: `${d.value}%`, background: d.color }} />
                   </div>
                 </div>
               ))}
             </div>
           </section>
 
-          {/* ── Section: Music Preference ── */}
-          {!preference && (
-            <section className="rp-preference-section">
-              <h2 className="rp-preference-title">How would you like your music?</h2>
-              <p className="rp-preference-subtitle">Choose how we should curate your playlist.</p>
-              <div className="rp-preference-options">
-                <button
-                  className="rp-pref-btn rp-pref-btn--match"
-                  onClick={() => handlePreference("match")}
-                >
-                  <span className="rp-pref-emoji">🎭</span>
-                  <span className="rp-pref-label">Match my current mood</span>
-                  <span className="rp-pref-desc">Songs that resonate with how you feel right now</span>
-                </button>
-                <button
-                  className="rp-pref-btn rp-pref-btn--uplift"
-                  onClick={() => handlePreference("uplift")}
-                >
-                  <span className="rp-pref-emoji">🌟</span>
-                  <span className="rp-pref-label">Uplift my mood</span>
-                  <span className="rp-pref-desc">Songs to gently shift your energy upward</span>
-                </button>
-              </div>
-            </section>
-          )}
+          {/* ── Music Preference ── */}
+          <section className="rp-preference-section">
+            <h2 className="rp-preference-title">How would you like your music?</h2>
+            <p className="rp-preference-subtitle">Choose how we should curate your playlist.</p>
+            <div className="rp-preference-options">
+              <button
+                className={`rp-pref-btn rp-pref-btn--match ${preference === "match" ? "rp-pref-btn--selected" : ""}`}
+                onClick={() => setPreference("match")}
+              >
+                <span className="rp-pref-emoji">🎭</span>
+                <span className="rp-pref-label">Match my current mood</span>
+                <span className="rp-pref-desc">Songs that resonate with how you feel right now</span>
+              </button>
+              <button
+                className={`rp-pref-btn rp-pref-btn--uplift ${preference === "uplift" ? "rp-pref-btn--selected" : ""}`}
+                onClick={() => setPreference("uplift")}
+              >
+                <span className="rp-pref-emoji">🌟</span>
+                <span className="rp-pref-label">Uplift my mood</span>
+                <span className="rp-pref-desc">Songs to gently shift your energy upward</span>
+              </button>
+            </div>
+          </section>
 
-          {/* ── Section: Playlist ── */}
+          {/* ── Customize Playlist (visible after preference selected) ── */}
           {preference && (
-            <section className="rp-playlist-section" ref={playlistRef}>
-              {loadingPlaylist ? (
-                <div className="rp-playlist-loading">
-                  <div className="rp-loading-orb">
-                    <div className="rp-loading-ring rp-loading-ring-1" />
-                    <div className="rp-loading-ring rp-loading-ring-2" />
-                    <div className="rp-loading-core">🎵</div>
-                  </div>
-                  <p className="rp-loading-text">Curating your playlist...</p>
+            <section className="rp-customize-section" ref={customRef}>
+              <h2 className="rp-customize-title">Customize your playlist</h2>
+              <p className="rp-customize-subtitle">
+                Choose your language preferences and music intensity.
+              </p>
+
+              {/* Languages */}
+              <div className="rp-field">
+                <label className="rp-field-label">Languages</label>
+                <div className="rp-language-tags">
+                  {LANGUAGE_OPTIONS.map((lang) => (
+                    <button
+                      key={lang}
+                      className={`rp-lang-tag ${languages.includes(lang) ? "rp-lang-tag--active" : ""}`}
+                      onClick={() => toggleLanguage(lang)}
+                    >
+                      {lang}
+                    </button>
+                  ))}
                 </div>
-              ) : playlist && (
-                <>
-                  <div className="rp-playlist-header">
-                    <h2 className="rp-playlist-title">{playlist.title}</h2>
-                    <span className="rp-playlist-count">{playlist.tracks.length} tracks</span>
-                  </div>
-                  <div className="rp-tracks">
-                    {playlist.tracks.map((track, i) => (
-                      <div key={track.id} className="rp-track">
-                        <div className="rp-track-num">{String(i + 1).padStart(2, "0")}</div>
-                        <div className="rp-track-color" style={{ background: track.color }} />
-                        <div className="rp-track-info">
-                          <span className="rp-track-title">{track.title}</span>
-                          <span className="rp-track-artist">{track.artist}</span>
-                        </div>
-                        <span className="rp-track-dur">{track.duration}</span>
-                        <button className="rp-track-play" aria-label={`Play ${track.title}`}>▶</button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="rp-actions">
-                    <button className="rp-action-btn rp-action-btn--primary" onClick={() => navigate("/analyze")}>
-                      ✦ New Analysis
-                    </button>
-                    <button className="rp-action-btn rp-action-btn--secondary" onClick={() => {
-                      setPreference(null);
-                      setPlaylist(null);
-                    }}>
-                      ↻ Change Preference
-                    </button>
-                  </div>
-                </>
-              )}
+              </div>
+
+              {/* Artists */}
+              <div className="rp-field">
+                <label className="rp-field-label">Artists <span className="rp-field-opt">(optional)</span></label>
+                <input
+                  type="text"
+                  className="rp-artist-input"
+                  placeholder="e.g. Bon Iver, Adele, The Weeknd"
+                  value={artistInput}
+                  onChange={(e) => setArtistInput(e.target.value)}
+                />
+                <span className="rp-field-hint">Separate multiple artists with commas</span>
+              </div>
+
+              {/* Intensity Slider */}
+              <div className="rp-field">
+                <div className="rp-slider-header">
+                  <label className="rp-field-label">Intensity</label>
+                  <span className="rp-slider-value">{intensityLabel}</span>
+                </div>
+                <div className="rp-slider-wrap">
+                  <span className="rp-slider-end">soft</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={intensity}
+                    onChange={(e) => setIntensity(Number(e.target.value))}
+                    className="rp-slider"
+                  />
+                  <span className="rp-slider-end">strong</span>
+                </div>
+              </div>
+
+              {/* Track Count Slider */}
+              <div className="rp-field">
+                <div className="rp-slider-header">
+                  <label className="rp-field-label">Number of tracks</label>
+                  <span className="rp-slider-value">{trackCount}</span>
+                </div>
+                <div className="rp-slider-wrap">
+                  <span className="rp-slider-end">5</span>
+                  <input
+                    type="range"
+                    min="5"
+                    max="50"
+                    value={trackCount}
+                    onChange={(e) => setTrackCount(Number(e.target.value))}
+                    className="rp-slider"
+                  />
+                  <span className="rp-slider-end">50</span>
+                </div>
+              </div>
+
+              {/* Generate Button */}
+              <button
+                className={`rp-generate-btn ${languages.length > 0 ? "rp-generate-btn--ready" : ""}`}
+                onClick={handleGenerate}
+                disabled={languages.length === 0 || generating}
+              >
+                {generating ? (
+                  <>
+                    <span className="rp-generate-spinner" />
+                    Generating...
+                  </>
+                ) : (
+                  <>✦ Generate Playlist</>
+                )}
+              </button>
             </section>
           )}
         </div>
