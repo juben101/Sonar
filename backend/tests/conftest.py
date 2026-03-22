@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, Asyn
 from config import get_settings
 from database import Base, get_db
 from main import app
+from limiter import limiter
 
 settings = get_settings()
 
@@ -48,6 +49,14 @@ async def override_get_db():
             yield session
         finally:
             await session.close()
+
+
+@pytest_asyncio.fixture(autouse=True)
+def disable_rate_limiter():
+    """Disable rate limiting during tests so tests don't interfere with each other."""
+    limiter.enabled = False
+    yield
+    limiter.enabled = True
 
 
 @pytest_asyncio.fixture

@@ -101,7 +101,7 @@ async def get_refresh_token(db: AsyncSession, token: str) -> RefreshToken | None
     result = await db.execute(
         select(RefreshToken).where(
             RefreshToken.token == token,
-            RefreshToken.is_revoked == False,
+            RefreshToken.is_revoked == False,  # noqa: E712
         )
     )
     return result.scalar_one_or_none()
@@ -125,7 +125,7 @@ async def revoke_all_user_tokens(db: AsyncSession, user_id: uuid.UUID) -> int:
         update(RefreshToken)
         .where(
             RefreshToken.user_id == user_id,
-            RefreshToken.is_revoked == False,
+            RefreshToken.is_revoked == False,  # noqa: E712
         )
         .values(is_revoked=True)
     )
@@ -142,7 +142,7 @@ async def cleanup_expired_tokens(db: AsyncSession) -> int:
         delete(RefreshToken).where(
             or_(
                 RefreshToken.expires_at < now,
-                RefreshToken.is_revoked == True,
+                RefreshToken.is_revoked == True,  # noqa: E712
             )
         )
     )

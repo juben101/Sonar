@@ -135,9 +135,9 @@ async def test_get_me(client):
 
 @pytest.mark.asyncio
 async def test_get_me_unauthorized(client):
-    """Test /auth/me without token returns 403."""
+    """Test /auth/me without token returns 401."""
     response = await client.get("/auth/me")
-    assert response.status_code == 403
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio

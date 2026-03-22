@@ -11,9 +11,9 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Import all models so metadata picks them up
-from database import Base
-from models.user import User  # noqa: F401
-from models.token import RefreshToken  # noqa: F401
+from database import Base  # noqa: E402
+from models.user import User  # noqa: E402, F401
+from models.token import RefreshToken  # noqa: E402, F401
 
 target_metadata = Base.metadata
 

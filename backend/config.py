@@ -1,9 +1,11 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from typing import List
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/sonar"
     JWT_SECRET_KEY: str = "sonar-super-secret-change-me-in-production"
     JWT_ALGORITHM: str = "HS256"
@@ -15,9 +17,6 @@ class Settings(BaseSettings):
 
     # Logging
     LOG_LEVEL: str = "INFO"
-
-    class Config:
-        env_file = ".env"
 
     @property
     def cors_origin_list(self) -> List[str]:
