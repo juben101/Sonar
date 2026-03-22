@@ -1,17 +1,19 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime
+from sqlalchemy import DateTime, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Uuid
 from database import Base
 
 
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(
-        String(36),
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
         primary_key=True,
-        default=lambda: str(uuid.uuid4()),
+        default=uuid.uuid4,
+        server_default=text("gen_random_uuid()"),
     )
     username: Mapped[str] = mapped_column(
         String(50), unique=True, index=True, nullable=False
@@ -33,7 +35,7 @@ class User(Base):
     def to_dict(self):
         """Return user data safe for API responses (no password)."""
         return {
-            "id": self.id,
+            "id": str(self.id),
             "username": self.username,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

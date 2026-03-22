@@ -1,7 +1,9 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 import bcrypt
 from jose import jwt, JWTError
-from sqlalchemy.orm import Session
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 from models.user import User
 from models.token import RefreshToken
 from config import get_settings
@@ -24,11 +26,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 # ── JWT Tokens ──
 
-def create_access_token(user_id: str, username: str) -> str:
+def create_access_token(user_id: uuid.UUID, username: str) -> str:
     """Create a short-lived access token (15 min default)."""
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
-        "sub": user_id,
+        "sub": str(user_id),
         "username": username,
         "type": "access",
         "exp": expire,
@@ -37,11 +39,11 @@ def create_access_token(user_id: str, username: str) -> str:
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 
-def create_refresh_token(user_id: str) -> tuple[str, datetime]:
+def create_refresh_token(user_id: uuid.UUID) -> tuple[str, datetime]:
     """Create a long-lived refresh token (7 days default). Returns (token, expires_at)."""
     expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
-        "sub": user_id,
+        "sub": str(user_id),
         "type": "refresh",
         "exp": expires_at,
         "iat": datetime.now(timezone.utc),
@@ -59,61 +61,90 @@ def decode_token(token: str) -> dict | None:
         return None
 
 
-# ── User operations ──
+# ── User operations (async) ──
 
-def get_user_by_username(db: Session, username: str) -> User | None:
-    return db.query(User).filter(User.username == username).first()
-
-
-def get_user_by_id(db: Session, user_id: str) -> User | None:
-    return db.query(User).filter(User.id == user_id).first()
+async def get_user_by_username(db: AsyncSession, username: str) -> User | None:
+    result = await db.execute(select(User).where(User.username == username))
+    return result.scalar_one_or_none()
 
 
-def create_user(db: Session, username: str, password: str) -> User:
+async def get_user_by_id(db: AsyncSession, user_id: str) -> User | None:
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    return result.scalar_one_or_none()
+
+
+async def create_user(db: AsyncSession, username: str, password: str) -> User:
     user = User(
         username=username,
         password_hash=hash_password(password),
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
     return user
 
 
-# ── Refresh token operations ──
+# ── Refresh token operations (async) ──
 
-def store_refresh_token(db: Session, user_id: str, token: str, expires_at: datetime) -> RefreshToken:
+async def store_refresh_token(db: AsyncSession, user_id: uuid.UUID, token: str, expires_at: datetime) -> RefreshToken:
     rt = RefreshToken(
         user_id=user_id,
         token=token,
         expires_at=expires_at,
     )
     db.add(rt)
-    db.commit()
+    await db.commit()
     return rt
 
 
-def get_refresh_token(db: Session, token: str) -> RefreshToken | None:
-    return db.query(RefreshToken).filter(
-        RefreshToken.token == token,
-        RefreshToken.is_revoked == False,
-    ).first()
+async def get_refresh_token(db: AsyncSession, token: str) -> RefreshToken | None:
+    result = await db.execute(
+        select(RefreshToken).where(
+            RefreshToken.token == token,
+            RefreshToken.is_revoked == False,
+        )
+    )
+    return result.scalar_one_or_none()
 
 
-def revoke_refresh_token(db: Session, token: str) -> bool:
-    rt = db.query(RefreshToken).filter(RefreshToken.token == token).first()
+async def revoke_refresh_token(db: AsyncSession, token: str) -> bool:
+    result = await db.execute(
+        select(RefreshToken).where(RefreshToken.token == token)
+    )
+    rt = result.scalar_one_or_none()
     if rt:
         rt.is_revoked = True
-        db.commit()
+        await db.commit()
         return True
     return False
 
 
-def revoke_all_user_tokens(db: Session, user_id: str) -> int:
+async def revoke_all_user_tokens(db: AsyncSession, user_id: uuid.UUID) -> int:
     """Revoke all refresh tokens for a user. Returns count of revoked tokens."""
-    count = db.query(RefreshToken).filter(
-        RefreshToken.user_id == user_id,
-        RefreshToken.is_revoked == False,
-    ).update({"is_revoked": True})
-    db.commit()
-    return count
+    result = await db.execute(
+        update(RefreshToken)
+        .where(
+            RefreshToken.user_id == user_id,
+            RefreshToken.is_revoked == False,
+        )
+        .values(is_revoked=True)
+    )
+    await db.commit()
+    return result.rowcount
+
+
+async def cleanup_expired_tokens(db: AsyncSession) -> int:
+    """Delete expired or revoked refresh tokens. Returns count deleted."""
+    from sqlalchemy import delete, or_
+
+    now = datetime.now(timezone.utc)
+    result = await db.execute(
+        delete(RefreshToken).where(
+            or_(
+                RefreshToken.expires_at < now,
+                RefreshToken.is_revoked == True,
+            )
+        )
+    )
+    await db.commit()
+    return result.rowcount
