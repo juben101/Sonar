@@ -1,17 +1,24 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from config import get_settings
 from limiter import limiter
+from middleware.logging import RequestLoggingMiddleware, setup_logging
+from middleware.exceptions import register_exception_handlers
 from routes.auth import router as auth_router
 
+settings = get_settings()
+
+# Configure structured logging
+setup_logging(settings.LOG_LEVEL)
 logger = logging.getLogger("sonar")
 
 
-async def _token_cleanup_loop():
+async def _token_cleanup_loop() -> None:
     """Background task that purges expired/revoked refresh tokens every hour."""
     from database import AsyncSessionLocal
     from services.auth_service import cleanup_expired_tokens
@@ -47,31 +54,37 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Rate limiter state
+# ── Rate limiter ──
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS — allow frontend dev server
+# ── Global exception handlers ──
+register_exception_handlers(app)
+
+# ── Request logging middleware ──
+app.add_middleware(RequestLoggingMiddleware)
+
+# ── CORS — configurable via CORS_ORIGINS in .env ──
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Register routers
+# ── Versioned API routes ──
+app.include_router(auth_router, prefix="/v1")
+
+# Also register without prefix for backward compatibility
 app.include_router(auth_router)
 
 
 @app.get("/")
-def root():
+def root() -> dict:
     return {"message": "Sonar API is running", "version": "1.0.0"}
 
 
 @app.get("/health")
-def health_check():
+def health_check() -> dict:
     return {"status": "healthy"}

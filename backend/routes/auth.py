@@ -33,7 +33,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/signup", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
-async def signup(body: SignupRequest, request: Request, db: AsyncSession = Depends(get_db)):
+async def signup(body: SignupRequest, request: Request, db: AsyncSession = Depends(get_db)) -> AuthResponse:
     """Register a new user and return access + refresh tokens."""
     # Check if username is taken
     existing = await get_user_by_username(db, body.username)
@@ -62,7 +62,7 @@ async def signup(body: SignupRequest, request: Request, db: AsyncSession = Depen
 
 @router.post("/login", response_model=AuthResponse)
 @limiter.limit("5/minute")
-async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
+async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)) -> AuthResponse:
     """Authenticate user and return access + refresh tokens."""
     user = await get_user_by_username(db, body.username)
     if not user or not verify_password(body.password, user.password_hash):
@@ -87,7 +87,7 @@ async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends
 
 @router.post("/refresh", response_model=TokenRefreshResponse)
 @limiter.limit("10/minute")
-async def refresh_access_token(body: RefreshRequest, request: Request, db: AsyncSession = Depends(get_db)):
+async def refresh_access_token(body: RefreshRequest, request: Request, db: AsyncSession = Depends(get_db)) -> TokenRefreshResponse:
     """Use a valid refresh token to get a new access token."""
     # Decode the refresh token
     payload = decode_token(body.refresh_token)
@@ -131,7 +131,7 @@ async def logout(
     body: LogoutRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> MessageResponse:
     """Revoke a refresh token (requires authentication)."""
     revoked = await revoke_refresh_token(db, body.refresh_token)
     if not revoked:
@@ -144,6 +144,6 @@ async def logout(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
+async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
     """Get the current authenticated user's profile."""
     return UserResponse(**current_user.to_dict())
