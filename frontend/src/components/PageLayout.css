@@ -1,0 +1,36 @@
+/* ── Shared Page Layout ── */
+.pl-root {
+  min-height: 100vh;
+  background: #060608;
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  overflow-x: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Ambient Glows ── */
+.pl-glow {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(130px);
+}
+
+.pl-glow-1 {
+  width: 500px;
+  height: 500px;
+  background: rgba(255, 40, 80, 0.07);
+  top: -120px;
+  left: -80px;
+}
+
+.pl-glow-2 {
+  width: 400px;
+  height: 400px;
+  background: rgba(140, 60, 255, 0.06);
+  bottom: 10%;
+  right: -5%;
+}

@@ -1,0 +1,83 @@
+/* ── Shared Navbar ── */
+.sn-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: 0 2rem;
+  backdrop-filter: blur(20px);
+  background: rgba(6, 6, 8, 0.8);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sn-nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+.sn-nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.sn-nav-logo-icon {
+  font-size: 1.4rem;
+}
+
+.sn-nav-logo-text {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, #ff3c64, #c96dff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.sn-nav-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.sn-nav-tag {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.25);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.sn-nav-right {
+  display: flex;
+  align-items: center;
+}
+
+.sn-nav-back {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.45);
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  transition: all 0.2s;
+}
+
+.sn-nav-back:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+
+@media (max-width: 600px) {
+  .sn-nav-center {
+    display: none;
+  }
+}

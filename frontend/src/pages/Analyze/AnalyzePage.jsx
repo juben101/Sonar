@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import StarfieldCanvas from "../../components/StarfieldCanvas";
+import Navbar from "../../components/Navbar";
+import Footer from "../../components/Footer";
+import PageLayout from "../../components/PageLayout";
 import "./AnalyzePage.css";
 
 export default function AnalyzePage() {
@@ -100,26 +102,12 @@ export default function AnalyzePage() {
   const canAnalyze = mode === "text" ? textInput.trim().length > 0 : recordingTime > 0;
 
   return (
-    <div className="az-root">
-      <StarfieldCanvas starCount={55} />
-      <div className="az-glow az-glow-1" />
-      <div className="az-glow az-glow-2" />
-
-      {/* ── Navbar ── */}
-      <nav className="az-nav">
-        <div className="az-nav-inner">
-          <div className="az-nav-logo" onClick={() => navigate("/dashboard")}>
-            <span className="az-nav-logo-icon">🎵</span>
-            <span className="az-nav-logo-text">Sonar</span>
-          </div>
-          <div className="az-nav-center">
-            <span className="az-nav-tag">Mood Analysis</span>
-          </div>
-          <button className="az-nav-back" onClick={() => navigate("/dashboard")}>
-            ← Back to Library
-          </button>
-        </div>
-      </nav>
+    <PageLayout>
+      <Navbar
+        centerLabel="Mood Analysis"
+        showBack
+        backTo="/dashboard"
+      />
 
       {/* ── Main ── */}
       <main className="az-main">
@@ -305,31 +293,7 @@ export default function AnalyzePage() {
         )}
       </main>
 
-      {/* ── Footer ── */}
-      <footer className="az-footer">
-        <div className="az-footer-inner">
-          <div className="az-footer-brand">
-            <span className="az-nav-logo-icon">🎵</span>
-            <span className="az-nav-logo-text">Sonar</span>
-            <p className="az-footer-desc">AI-powered emotion-aware music platform.</p>
-          </div>
-          <div className="az-footer-links">
-            <div className="az-footer-col">
-              <h4>Product</h4>
-              <a href="#">Features</a>
-              <a href="#">How It Works</a>
-            </div>
-            <div className="az-footer-col">
-              <h4>Company</h4>
-              <a href="#">About</a>
-              <a href="#">Contact</a>
-            </div>
-          </div>
-        </div>
-        <div className="az-footer-bottom">
-          <p>© 2026 Sonar. All rights reserved.</p>
-        </div>
-      </footer>
-    </div>
+      <Footer />
+    </PageLayout>
   );
 }

@@ -1,0 +1,91 @@
+/* ── Shared Footer ── */
+.sn-footer {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 3rem 2rem 0;
+}
+
+.sn-footer-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 4rem;
+  padding-bottom: 3rem;
+}
+
+.sn-footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sn-footer-logo-icon {
+  font-size: 1.4rem;
+}
+
+.sn-footer-logo-text {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, #ff3c64, #c96dff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.sn-footer-desc {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.82rem;
+  margin: 0.5rem 0 0;
+  font-weight: 300;
+}
+
+.sn-footer-links {
+  display: flex;
+  gap: 4rem;
+}
+
+.sn-footer-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sn-footer-col h4 {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0 0 4px;
+}
+
+.sn-footer-col a {
+  color: rgba(255, 255, 255, 0.3);
+  text-decoration: none;
+  font-size: 0.82rem;
+  transition: color 0.2s;
+}
+
+.sn-footer-col a:hover {
+  color: #fff;
+}
+
+.sn-footer-bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem 0;
+}
+
+.sn-footer-bottom p {
+  color: rgba(255, 255, 255, 0.2);
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+@media (max-width: 600px) {
+  .sn-footer-inner {
+    flex-direction: column;
+    gap: 2rem;
+  }
+}
