@@ -26,8 +26,8 @@ describe("useAuthStore", () => {
     expect(typeof state.logout).toBe("function");
   });
 
-  it("has initializeAuth method", () => {
+  it("has setUser method for hydration", () => {
     const state = useAuthStore.getState();
-    expect(typeof state.initializeAuth).toBe("function");
+    expect(typeof state.setUser).toBe("function");
   });
 });
