@@ -591,7 +591,9 @@ def generate_playlist(
     # Apply intensity modifier: high intensity boosts energy, low boosts calm
     intensity_factor = (intensity - 50) / 50  # -1 to 1
     if "energy" in target:
-        target["energy"] = min(max(target["energy"] + int(intensity_factor * 30), 5), 100)
+        target["energy"] = min(
+            max(target["energy"] + int(intensity_factor * 30), 5), 100
+        )
     if "calm" in target:
         target["calm"] = min(max(target["calm"] - int(intensity_factor * 20), 5), 100)
 
@@ -664,4 +666,3 @@ def generate_playlist(
         )
 
     return {"title": title, "tracks": tracks}
-
