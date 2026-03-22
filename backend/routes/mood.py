@@ -39,5 +39,12 @@ async def get_playlist(
     current_user=Depends(get_current_user),
 ) -> PlaylistResponse:
     """Generate a playlist based on mood dimensions and user preference."""
-    playlist = generate_playlist(body.dimensions, body.preference)
+    playlist = generate_playlist(
+        body.dimensions,
+        body.preference,
+        languages=body.languages,
+        artists=body.artists,
+        intensity=body.intensity,
+        track_count=body.track_count,
+    )
     return PlaylistResponse(**playlist)

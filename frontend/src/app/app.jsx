@@ -5,6 +5,7 @@ import AuthPage from "../pages/Auth/AuthPage";
 import DashboardPage from "../pages/Dashboard/DashboardPage";
 import AnalyzePage from "../pages/Analyze/AnalyzePage";
 import ResultPage from "../pages/Result/ResultPage";
+import PlaylistPage from "../pages/Playlist/PlaylistPage";
 import NotFoundPage from "../pages/NotFound/NotFoundPage";
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/analyze" element={<ProtectedRoute><AnalyzePage /></ProtectedRoute>} />
           <Route path="/result" element={<ProtectedRoute><ResultPage /></ProtectedRoute>} />
+          <Route path="/playlist" element={<ProtectedRoute><PlaylistPage /></ProtectedRoute>} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>

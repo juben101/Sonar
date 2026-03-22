@@ -109,6 +109,8 @@ export const authApi = {
 export const moodApi = {
   analyze: (text) => api.post("/v1/mood/analyze", { text }),
 
-  playlist: (dimensions, preference) =>
-    api.post("/v1/mood/playlist", { dimensions, preference }),
+  playlist: (dimensions, preference, languages = [], artists = [], intensity = 50, track_count = 15) =>
+    api.post("/v1/mood/playlist", {
+      dimensions, preference, languages, artists, intensity, track_count,
+    }),
 };

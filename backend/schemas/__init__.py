@@ -75,6 +75,10 @@ class MoodAnalyzeResponse(BaseModel):
 class PlaylistRequest(BaseModel):
     dimensions: list[MoodDimension]
     preference: str = Field(..., pattern=r"^(match|uplift)$")
+    languages: list[str] = Field(default=["English"])
+    artists: list[str] = Field(default=[])
+    intensity: int = Field(default=50, ge=0, le=100)
+    track_count: int = Field(default=15, ge=5, le=50)
 
 
 class TrackResponse(BaseModel):

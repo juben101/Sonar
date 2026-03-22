@@ -559,18 +559,24 @@ def analyze_mood(text: str) -> dict:
 def generate_playlist(
     dimensions: list[dict],
     preference: str = "match",
+    languages: list[str] | None = None,
+    artists: list[str] | None = None,
+    intensity: int = 50,
+    track_count: int = 15,
 ) -> dict:
     """
-    Generate a playlist of 8 tracks based on mood dimensions and user preference.
+    Generate a playlist based on mood dimensions, user preference, and customization.
 
     preference: "match" = songs that match the mood,
                 "uplift" = songs that counterbalance toward positivity.
+    intensity: 0 (soft) to 100 (strong) — adjusts energy/calm weighting.
+    track_count: 5 to 50 — number of tracks to include.
+    artists: optional list of preferred artist names (boosted in scoring).
     """
     # Convert dimension list to dict
     dim_dict = {d["name"].lower(): d["value"] for d in dimensions}
 
     if preference == "uplift":
-        # Invert: boost joy/energy, suppress sadness/tension
         target = {
             "joy": min(dim_dict.get("sadness", 50) + 30, 100),
             "energy": min(dim_dict.get("tension", 50) + 20, 100),
@@ -580,28 +586,46 @@ def generate_playlist(
             "nostalgia": max(dim_dict.get("nostalgia", 30) - 20, 5),
         }
     else:
-        target = dim_dict
+        target = dict(dim_dict)
 
-    # Score each track by how well it matches the target dimensions
+    # Apply intensity modifier: high intensity boosts energy, low boosts calm
+    intensity_factor = (intensity - 50) / 50  # -1 to 1
+    if "energy" in target:
+        target["energy"] = min(max(target["energy"] + int(intensity_factor * 30), 5), 100)
+    if "calm" in target:
+        target["calm"] = min(max(target["calm"] - int(intensity_factor * 20), 5), 100)
+
+    # Normalize artist names for matching
+    preferred_artists = [a.lower().strip() for a in (artists or []) if a.strip()]
+
+    # Score each track
     scored: list[tuple[float, Track]] = []
     for track in _CATALOG:
         score = 0.0
         for dim, target_val in target.items():
             track_val = track.tags.get(dim, 0)
-            # Higher score if track dimension is close to target
             score += max(0, 100 - abs(target_val - track_val))
+
+        # Artist boost: if user requested specific artists, boost matching tracks
+        if preferred_artists:
+            track_artist_lower = track.artist.lower()
+            for pa in preferred_artists:
+                if pa in track_artist_lower or track_artist_lower in pa:
+                    score += 500  # massive boost
+                    break
+
         scored.append((score, track))
 
-    # Sort by score (highest first), take top 8, shuffle for variety
+    # Sort by score, take more than needed, shuffle, then trim
     scored.sort(key=lambda x: x[0], reverse=True)
-    top_tracks = [t for _, t in scored[:12]]
+    pool_size = min(len(scored), track_count + 8)
+    top_tracks = [t for _, t in scored[:pool_size]]
     random.shuffle(top_tracks)
-    selected = top_tracks[:8]
+    selected = top_tracks[:track_count]
 
-    # Map to response format
+    # Playlist title
     top_dim_name = max(dim_dict, key=dim_dict.get) if dim_dict else "calm"
 
-    # Playlist name
     playlist_names = {
         "match": {
             "sadness": "Midnight Drift",
@@ -627,7 +651,6 @@ def generate_playlist(
 
     tracks = []
     for i, t in enumerate(selected):
-        # Pick color from the track's strongest dimension
         strongest = max(t.tags, key=t.tags.get) if t.tags else "calm"
         color = _DIMENSION_COLORS.get(strongest, "#888")
         tracks.append(
@@ -641,3 +664,4 @@ def generate_playlist(
         )
 
     return {"title": title, "tracks": tracks}
+
