@@ -67,7 +67,8 @@ export default function DashboardPage() {
           </div>
 
           <div className="db-nav-center">
-            <span className="db-nav-tag">Your Library</span>
+            <span className="db-nav-tag" onClick={() => navigate("/dashboard")} style={{ cursor: "pointer" }}>Your Library</span>
+            <span className="db-nav-tag" onClick={() => navigate("/history")} style={{ cursor: "pointer", opacity: 0.6 }}>📊 Mood History</span>
           </div>
 
           {/* Profile box */}
