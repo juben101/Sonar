@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     TOGETHER_API_KEY: str = ""
 
+    # ── Voice Transcription (fallback: Deepgram → AssemblyAI) ──
+    DEEPGRAM_API_KEY: str = ""
+    ASSEMBLYAI_API_KEY: str = ""
+
+    # ── Weather (OpenWeatherMap) ──
+    OPENWEATHERMAP_API_KEY: str = ""
+
     # ── Spotify ──
     SPOTIFY_CLIENT_ID: str = ""
     SPOTIFY_CLIENT_SECRET: str = ""
