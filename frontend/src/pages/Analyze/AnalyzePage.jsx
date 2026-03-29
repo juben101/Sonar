@@ -16,7 +16,7 @@ export default function AnalyzePage() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioWave, setAudioWave] = useState(Array(40).fill(2));
-  const [audioBlob, setAudioBlob] = useState(null);
+  const [_audioBlob, setAudioBlob] = useState(null);
   const [transcribedText, setTranscribedText] = useState("");
   const [transcribing, setTranscribing] = useState(false);
   const [userLocation, setUserLocation] = useState(null);

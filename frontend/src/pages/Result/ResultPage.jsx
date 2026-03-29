@@ -96,7 +96,7 @@ export default function ResultPage() {
 
   if (!analysisData) return null;
 
-  const { mood, moodEmoji, base_emotion, sub_emotion, nuance, sentiment, confidence, explanation, genre, genre_reason, dimensions } = analysisData;
+  const { moodEmoji, base_emotion, sub_emotion, sentiment, confidence, explanation, genre, genre_reason, dimensions } = analysisData;
 
   const sentimentColors = {
     Positive: { bg: "rgba(74, 222, 128, 0.08)", border: "rgba(74, 222, 128, 0.25)", text: "#4ade80" },

@@ -141,10 +141,6 @@ export default function PlaylistPage() {
     ? playlist.tracks.find((t) => t.id === playingId)
     : null;
 
-  // Current playing index for visual feedback
-  const playingIndex = playingTrack
-    ? playlist.tracks.findIndex((t) => t.id === playingId)
-    : -1;
 
   return (
     <PageLayout>
