@@ -151,4 +151,10 @@ export const moodApi = {
     api.post("/v1/mood/playlist", {
       dimensions, preference, languages, artists, intensity, track_count, genre, base_emotion,
     }),
+
+  history: (days = 30, limit = 50) =>
+    api.get(`/v1/mood/history?days=${days}&limit=${limit}`),
+
+  stats: (days = 30) =>
+    api.get(`/v1/mood/stats?days=${days}`),
 };
