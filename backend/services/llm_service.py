@@ -147,13 +147,27 @@ RULES:
 - be empathetic and insightful, not clinical"""
 
 
-async def _call_llm(provider: dict, text: str) -> dict:
+async def _call_llm(
+    provider: dict, text: str, weather_context: dict | None = None
+) -> dict:
     """Call a single LLM provider and parse the JSON response."""
     settings = get_settings()
     api_key = getattr(settings, provider["key_field"], "")
 
     if not api_key:
         raise ValueError(f"{provider['name']}: no API key configured")
+
+    # Build user message with optional weather context
+    user_msg = f"Analyze the emotion in this text:\n\n{text}"
+    if weather_context:
+        user_msg += (
+            f"\n\nWEATHER CONTEXT (factor this into your genre recommendation):\n"
+            f"Location: {weather_context.get('city', 'Unknown')}\n"
+            f"Conditions: {weather_context.get('description', 'unknown')}\n"
+            f"Temperature: {weather_context.get('temp_c', 20)}°C\n"
+            f"Weather mood hint: {weather_context.get('mood_hint', '')}\n"
+            f"Weather genre hint: {weather_context.get('genre_hint', '')}"
+        )
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
@@ -166,10 +180,7 @@ async def _call_llm(provider: dict, text: str) -> dict:
                 "model": provider["model"],
                 "messages": [
                     {"role": "system", "content": _SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": f"Analyze the emotion in this text:\n\n{text}",
-                    },
+                    {"role": "user", "content": user_msg},
                 ],
                 "temperature": 0.3,
                 "max_tokens": 600,
@@ -190,19 +201,22 @@ async def _call_llm(provider: dict, text: str) -> dict:
     return json.loads(content)
 
 
-async def analyze_emotion(text: str) -> dict:
+async def analyze_emotion(
+    text: str, weather_context: dict | None = None
+) -> dict:
     """
     Analyze text emotion using LLM with fallback hierarchy.
 
     Returns structured emotion analysis with base/sub emotion, sentiment,
     confidence, explanation, genre recommendation, and 6 dimensions.
+    Optionally includes weather context for genre influence.
     """
     last_error = None
 
     for provider in _PROVIDERS:
         try:
             logger.info(f"Trying {provider['name']} for emotion analysis...")
-            result = await _call_llm(provider, text)
+            result = await _call_llm(provider, text, weather_context)
 
             # Validate required fields
             base = result.get("base_emotion", "Calm")
