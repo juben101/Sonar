@@ -27,7 +27,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # ── JWT Tokens ──
 
 
-def create_access_token(user_id: uuid.UUID, username: str) -> str:
+def create_access_token(user_id: str, username: str) -> str:
     """Create a short-lived access token (15 min default)."""
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
@@ -45,7 +45,7 @@ def create_access_token(user_id: uuid.UUID, username: str) -> str:
     )
 
 
-def create_refresh_token(user_id: uuid.UUID) -> tuple[str, datetime]:
+def create_refresh_token(user_id: str) -> tuple[str, datetime]:
     """Create a long-lived refresh token (7 days default). Returns (token, expires_at)."""
     expires_at = datetime.now(timezone.utc) + timedelta(
         days=settings.REFRESH_TOKEN_EXPIRE_DAYS
@@ -102,7 +102,7 @@ async def create_user(db: AsyncSession, username: str, password: str) -> User:
 
 
 async def store_refresh_token(
-    db: AsyncSession, user_id: uuid.UUID, token: str, expires_at: datetime
+    db: AsyncSession, user_id: str, token: str, expires_at: datetime
 ) -> RefreshToken:
     rt = RefreshToken(
         user_id=user_id,
@@ -134,7 +134,7 @@ async def revoke_refresh_token(db: AsyncSession, token: str) -> bool:
     return False
 
 
-async def revoke_all_user_tokens(db: AsyncSession, user_id: uuid.UUID) -> int:
+async def revoke_all_user_tokens(db: AsyncSession, user_id: str) -> int:
     """Revoke all refresh tokens for a user. Returns count of revoked tokens."""
     result = await db.execute(
         update(RefreshToken)
