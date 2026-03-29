@@ -121,3 +121,50 @@ class TrackResponse(BaseModel):
 class PlaylistResponse(BaseModel):
     title: str
     tracks: list[TrackResponse]
+
+
+# ── Mood history schemas ──
+
+
+class MoodEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    base_emotion: str
+    sub_emotion: str
+    confidence: int
+    sentiment: str
+    genre: str
+    input_preview: str
+    weather_condition: str
+    mood_emoji: str
+    energy: float
+    valence: float
+    created_at: str
+
+
+class EmotionCount(BaseModel):
+    emotion: str
+    count: int
+
+
+class DailyMood(BaseModel):
+    date: str
+    base_emotion: str
+    confidence: int
+    energy: float
+    valence: float
+
+
+class MoodHistoryResponse(BaseModel):
+    entries: list[MoodEntryResponse]
+    total: int
+
+
+class MoodStatsResponse(BaseModel):
+    emotion_distribution: list[EmotionCount]
+    avg_confidence: float
+    total_analyses: int
+    daily_moods: list[DailyMood]
+    top_genre: str
+    dominant_emotion: str

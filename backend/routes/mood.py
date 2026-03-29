@@ -1,14 +1,22 @@
 """Mood analysis API routes."""
 
+from collections import Counter
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, File, Request, UploadFile
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies.auth import get_current_user
 from limiter import limiter
+from models.mood_entry import MoodEntry
+from models.user import User
 from schemas import (
     MoodAnalyzeRequest,
     MoodAnalyzeResponse,
+    MoodHistoryResponse,
+    MoodStatsResponse,
     PlaylistRequest,
     PlaylistResponse,
     TranscribeResponse,
@@ -29,7 +37,7 @@ async def transcribe_audio(
     request: Request,
     audio: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> TranscribeResponse:
     """Transcribe uploaded audio to text via Deepgram/AssemblyAI."""
     audio_bytes = await audio.read()
@@ -44,16 +52,161 @@ async def analyze_text(
     request: Request,
     body: MoodAnalyzeRequest,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> MoodAnalyzeResponse:
-    """Analyze text input and return emotion analysis via LLM."""
+    """Analyze text input and return emotion analysis via LLM. Auto-saves to history."""
     # Fetch weather if coordinates provided
     weather_context = None
     if body.lat is not None and body.lon is not None:
         weather_context = await fetch_weather(body.lat, body.lon)
 
     result = await analyze_mood(body.text, weather_context)
+
+    # ── Auto-save to mood history ──
+    # Extract energy and valence from dimensions if available
+    energy = 50.0
+    valence = 50.0
+    for dim in result.get("dimensions", []):
+        if dim.get("name", "").lower() == "energy":
+            energy = float(dim.get("value", 50))
+        elif dim.get("name", "").lower() in ("happiness", "valence"):
+            valence = float(dim.get("value", 50))
+
+    weather_cond = ""
+    if result.get("weather") and result["weather"].get("condition"):
+        weather_cond = result["weather"]["condition"]
+
+    entry = MoodEntry(
+        user_id=current_user.id,
+        base_emotion=result.get("base_emotion", ""),
+        sub_emotion=result.get("sub_emotion", ""),
+        confidence=result.get("confidence", 0),
+        sentiment=result.get("sentiment", ""),
+        genre=result.get("genre", ""),
+        input_preview=body.text[:100],
+        weather_condition=weather_cond,
+        mood_emoji=result.get("moodEmoji", ""),
+        energy=energy,
+        valence=valence,
+    )
+    db.add(entry)
+    await db.commit()
+
     return MoodAnalyzeResponse(**result)
+
+
+@router.get("/history", response_model=MoodHistoryResponse)
+@limiter.limit("30/minute")
+async def get_mood_history(
+    request: Request,
+    days: int = 30,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MoodHistoryResponse:
+    """Get the user's mood analysis history (last N days)."""
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    result = await db.execute(
+        select(MoodEntry)
+        .where(MoodEntry.user_id == current_user.id, MoodEntry.created_at >= since)
+        .order_by(MoodEntry.created_at.desc())
+        .limit(limit)
+    )
+    entries = result.scalars().all()
+
+    # Count total
+    count_result = await db.execute(
+        select(func.count(MoodEntry.id)).where(
+            MoodEntry.user_id == current_user.id, MoodEntry.created_at >= since
+        )
+    )
+    total = count_result.scalar() or 0
+
+    return MoodHistoryResponse(
+        entries=[
+            {
+                **{
+                    c.name: getattr(e, c.name) for c in MoodEntry.__table__.columns
+                },
+                "created_at": e.created_at.isoformat() if e.created_at else "",
+            }
+            for e in entries
+        ],
+        total=total,
+    )
+
+
+@router.get("/stats", response_model=MoodStatsResponse)
+@limiter.limit("30/minute")
+async def get_mood_stats(
+    request: Request,
+    days: int = 30,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MoodStatsResponse:
+    """Get aggregated mood statistics for charts."""
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    result = await db.execute(
+        select(MoodEntry)
+        .where(MoodEntry.user_id == current_user.id, MoodEntry.created_at >= since)
+        .order_by(MoodEntry.created_at.asc())
+    )
+    entries = list(result.scalars().all())
+
+    if not entries:
+        return MoodStatsResponse(
+            emotion_distribution=[],
+            avg_confidence=0.0,
+            total_analyses=0,
+            daily_moods=[],
+            top_genre="",
+            dominant_emotion="",
+        )
+
+    # Emotion distribution
+    emotion_counts = Counter(e.base_emotion for e in entries)
+    emotion_distribution = [
+        {"emotion": emotion, "count": count}
+        for emotion, count in emotion_counts.most_common()
+    ]
+
+    # Average confidence
+    avg_confidence = sum(e.confidence for e in entries) / len(entries)
+
+    # Daily moods (last entry per day)
+    daily_map = {}
+    for e in entries:
+        day_key = e.created_at.strftime("%Y-%m-%d") if e.created_at else ""
+        daily_map[day_key] = e  # last entry per day (entries are asc ordered)
+
+    daily_moods = [
+        {
+            "date": day,
+            "base_emotion": e.base_emotion,
+            "confidence": e.confidence,
+            "energy": e.energy,
+            "valence": e.valence,
+        }
+        for day, e in sorted(daily_map.items())
+    ]
+
+    # Top genre
+    genre_counts = Counter(e.genre for e in entries if e.genre)
+    top_genre = genre_counts.most_common(1)[0][0] if genre_counts else ""
+
+    # Dominant emotion
+    dominant_emotion = emotion_counts.most_common(1)[0][0] if emotion_counts else ""
+
+    return MoodStatsResponse(
+        emotion_distribution=emotion_distribution,
+        avg_confidence=round(avg_confidence, 1),
+        total_analyses=len(entries),
+        daily_moods=daily_moods,
+        top_genre=top_genre,
+        dominant_emotion=dominant_emotion,
+    )
 
 
 @router.post("/playlist", response_model=PlaylistResponse)
@@ -62,7 +215,7 @@ async def get_playlist(
     request: Request,
     body: PlaylistRequest,
     db: AsyncSession = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ) -> PlaylistResponse:
     """Generate a Spotify playlist based on mood and user preferences."""
     playlist = await generate_playlist(
