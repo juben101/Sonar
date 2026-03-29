@@ -126,9 +126,7 @@ async def get_mood_history(
     return MoodHistoryResponse(
         entries=[
             {
-                **{
-                    c.name: getattr(e, c.name) for c in MoodEntry.__table__.columns
-                },
+                **{c.name: getattr(e, c.name) for c in MoodEntry.__table__.columns},
                 "created_at": e.created_at.isoformat() if e.created_at else "",
             }
             for e in entries
