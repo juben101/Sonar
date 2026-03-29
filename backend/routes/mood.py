@@ -1,6 +1,6 @@
 """Mood analysis API routes."""
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, Request, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
@@ -11,10 +11,31 @@ from schemas import (
     MoodAnalyzeResponse,
     PlaylistRequest,
     PlaylistResponse,
+    TranscribeResponse,
 )
-from services.mood_service import analyze_mood, generate_playlist
+from services.mood_service import (
+    analyze_mood,
+    fetch_weather,
+    generate_playlist,
+    transcribe,
+)
 
 router = APIRouter(prefix="/mood", tags=["mood"])
+
+
+@router.post("/transcribe", response_model=TranscribeResponse)
+@limiter.limit("10/minute")
+async def transcribe_audio(
+    request: Request,
+    audio: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> TranscribeResponse:
+    """Transcribe uploaded audio to text via Deepgram/AssemblyAI."""
+    audio_bytes = await audio.read()
+    content_type = audio.content_type or "audio/webm"
+    text = await transcribe(audio_bytes, content_type)
+    return TranscribeResponse(text=text)
 
 
 @router.post("/analyze", response_model=MoodAnalyzeResponse)
@@ -26,7 +47,12 @@ async def analyze_text(
     current_user=Depends(get_current_user),
 ) -> MoodAnalyzeResponse:
     """Analyze text input and return emotion analysis via LLM."""
-    result = await analyze_mood(body.text)
+    # Fetch weather if coordinates provided
+    weather_context = None
+    if body.lat is not None and body.lon is not None:
+        weather_context = await fetch_weather(body.lat, body.lon)
+
+    result = await analyze_mood(body.text, weather_context)
     return MoodAnalyzeResponse(**result)
 
 

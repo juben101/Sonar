@@ -41,6 +41,34 @@ async function request(endpoint, options = {}, _retried = false) {
 }
 
 /**
+ * Raw fetch with auth (for file uploads — no JSON content-type).
+ */
+async function rawRequest(endpoint, options = {}) {
+  const url = `${API_URL}${endpoint}`;
+  const token = localStorage.getItem("sonar_access_token");
+
+  const config = {
+    headers: {},
+    ...options,
+  };
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, config);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({
+      detail: "Something went wrong",
+    }));
+    throw new Error(error.detail || `HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
  * Attempt to refresh the access token using the stored refresh token.
  */
 async function tryRefreshToken() {
@@ -107,7 +135,17 @@ export const authApi = {
 
 // Mood analysis API calls
 export const moodApi = {
-  analyze: (text) => api.post("/v1/mood/analyze", { text }),
+  analyze: (text, lat = null, lon = null) =>
+    api.post("/v1/mood/analyze", { text, lat, lon }),
+
+  transcribe: (audioBlob) => {
+    const formData = new FormData();
+    formData.append("audio", audioBlob, "recording.webm");
+    return rawRequest("/v1/mood/transcribe", {
+      method: "POST",
+      body: formData,
+    });
+  },
 
   playlist: (dimensions, preference, languages = [], artists = [], intensity = 50, track_count = 15, genre = "pop", base_emotion = "Calm") =>
     api.post("/v1/mood/playlist", {

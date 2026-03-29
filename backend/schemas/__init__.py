@@ -54,12 +54,21 @@ class MessageResponse(BaseModel):
 
 class MoodAnalyzeRequest(BaseModel):
     text: str = Field(..., min_length=10, max_length=2000)
+    lat: float | None = None
+    lon: float | None = None
 
 
 class MoodDimension(BaseModel):
     name: str
     value: int
     color: str
+
+
+class WeatherInfo(BaseModel):
+    city: str = ""
+    condition: str = ""
+    description: str = ""
+    temp_c: int = 0
 
 
 class MoodAnalyzeResponse(BaseModel):
@@ -74,6 +83,17 @@ class MoodAnalyzeResponse(BaseModel):
     genre: str
     genre_reason: str
     dimensions: list[MoodDimension]
+    weather: WeatherInfo | None = None
+
+
+# ── Transcription schemas ──
+
+
+class TranscribeResponse(BaseModel):
+    text: str
+
+
+# ── Playlist schemas ──
 
 
 class PlaylistRequest(BaseModel):
