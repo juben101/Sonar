@@ -1,79 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import StarfieldCanvas from "../../components/StarfieldCanvas";
+import useAuthStore from "../../stores/useAuthStore";
+import usePlaylistStore from "../../stores/usePlaylistStore";
 import "./DashboardPage.css";
-
-const MOCK_PLAYLISTS = [
-  {
-    id: 1,
-    title: "Midnight Drift",
-    mood: "Melancholy",
-    moodEmoji: "🌧",
-    tracks: 14,
-    duration: "52 min",
-    gradient: "linear-gradient(135deg, #1a0533 0%, #0d1a33 100%)",
-    accent: "#7c4dff",
-    date: "Today",
-  },
-  {
-    id: 2,
-    title: "Solar Rush",
-    mood: "Energetic",
-    moodEmoji: "⚡",
-    tracks: 18,
-    duration: "1h 4min",
-    gradient: "linear-gradient(135deg, #330a00 0%, #1a1500 100%)",
-    accent: "#ff6b00",
-    date: "Yesterday",
-  },
-  {
-    id: 3,
-    title: "Cotton Cloud",
-    mood: "Calm",
-    moodEmoji: "😌",
-    tracks: 11,
-    duration: "41 min",
-    gradient: "linear-gradient(135deg, #001a1a 0%, #001133 100%)",
-    accent: "#00d4aa",
-    date: "2 days ago",
-  },
-  {
-    id: 4,
-    title: "Golden Hour",
-    mood: "Happy",
-    moodEmoji: "😊",
-    tracks: 16,
-    duration: "58 min",
-    gradient: "linear-gradient(135deg, #1a1100 0%, #1a0a00 100%)",
-    accent: "#ffcc00",
-    date: "3 days ago",
-  },
-  {
-    id: 5,
-    title: "Neon Pulse",
-    mood: "Energetic",
-    moodEmoji: "⚡",
-    tracks: 20,
-    duration: "1h 12min",
-    gradient: "linear-gradient(135deg, #1a0033 0%, #001a33 100%)",
-    accent: "#ff3c64",
-    date: "4 days ago",
-  },
-  {
-    id: 6,
-    title: "Velvet Rain",
-    mood: "Romantic",
-    moodEmoji: "💕",
-    tracks: 13,
-    duration: "48 min",
-    gradient: "linear-gradient(135deg, #1a0011 0%, #0d0033 100%)",
-    accent: "#ff6bbb",
-    date: "5 days ago",
-  },
-];
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
+  const { playlists, deletePlaylist } = usePlaylistStore();
+  const displayName = user?.username || "User";
+  const displayInitial = displayName.charAt(0).toUpperCase();
   const [profileOpen, setProfileOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState("account");
@@ -90,8 +27,29 @@ export default function DashboardPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const handleSignOut = () => {
+  // Time-based greeting
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  const handleSignOut = async () => {
+    await logout();
     navigate("/auth");
+  };
+
+  const handlePlaylistClick = (pl) => {
+    navigate("/playlist", {
+      state: {
+        playlist: { title: pl.title, tracks: pl.trackList || [] },
+        analysis: pl.analysis || { moodEmoji: pl.moodEmoji, base_emotion: pl.base_emotion },
+        preference: pl.preference || "match",
+        settings: pl.settings || {},
+      },
+    });
+  };
+
+  const handleDelete = (e, id) => {
+    e.stopPropagation();
+    deletePlaylist(id);
   };
 
   return (
@@ -109,7 +67,8 @@ export default function DashboardPage() {
           </div>
 
           <div className="db-nav-center">
-            <span className="db-nav-tag">Your Library</span>
+            <span className="db-nav-tag" onClick={() => navigate("/dashboard")} style={{ cursor: "pointer" }}>Your Library</span>
+            <span className="db-nav-tag" onClick={() => navigate("/history")} style={{ cursor: "pointer", opacity: 0.6 }}>📊 Mood History</span>
           </div>
 
           {/* Profile box */}
@@ -120,10 +79,10 @@ export default function DashboardPage() {
               aria-label="User profile menu"
             >
               <div className="db-avatar">
-                <span>U</span>
+                <span>{displayInitial}</span>
                 <div className="db-avatar-ring" />
               </div>
-              <span className="db-username">User</span>
+              <span className="db-username">{displayName}</span>
               <svg
                 className={`db-chevron ${profileOpen ? "db-chevron--open" : ""}`}
                 width="12"
@@ -138,10 +97,10 @@ export default function DashboardPage() {
             {profileOpen && (
               <div className="db-dropdown">
                 <div className="db-dropdown-header">
-                  <div className="db-dropdown-avatar">U</div>
+                  <div className="db-dropdown-avatar">{displayInitial}</div>
                   <div>
-                    <p className="db-dropdown-name">User</p>
-                    <p className="db-dropdown-email">user@sonar.app</p>
+                    <p className="db-dropdown-name">{displayName}</p>
+                    <p className="db-dropdown-email">@{displayName}</p>
                   </div>
                 </div>
                 <div className="db-dropdown-divider" />
@@ -175,7 +134,7 @@ export default function DashboardPage() {
         {/* Hero greeting */}
         <section className="db-hero">
           <div className="db-hero-text">
-            <p className="db-greeting-label">Good evening</p>
+            <p className="db-greeting-label">{greeting}</p>
             <h1 className="db-greeting">
               How are you <span className="db-greeting-accent">feeling</span> today?
             </h1>
@@ -207,45 +166,76 @@ export default function DashboardPage() {
           </button>
         </section>
 
-        
-
         {/* ── Playlists Grid ── */}
         <section className="db-playlists">
           <div className="db-playlists-header">
             <h2 className="db-section-title">Your Generated Playlists</h2>
-            <span className="db-playlist-count">{MOCK_PLAYLISTS.length} playlists</span>
+            <span className="db-playlist-count">
+              {playlists.length} {playlists.length === 1 ? "playlist" : "playlists"}
+            </span>
           </div>
 
-          <div className="db-grid">
-            {MOCK_PLAYLISTS.map((pl) => (
-              <div key={pl.id} className="db-card" style={{ "--card-accent": pl.accent }}>
-                <div className="db-card-art" style={{ background: pl.gradient }}>
-                  <div className="db-card-vinyl">
-                    <div className="db-card-vinyl-inner" />
+          {playlists.length > 0 ? (
+            <div className="db-grid">
+              {playlists.map((pl) => (
+                <div
+                  key={pl.id}
+                  className="db-card"
+                  style={{ "--card-accent": pl.accent }}
+                  onClick={() => handlePlaylistClick(pl)}
+                >
+                  <div className="db-card-art" style={{ background: pl.gradient }}>
+                    <div className="db-card-vinyl">
+                      <div className="db-card-vinyl-inner" />
+                    </div>
+                    <div className="db-card-play">
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor">
+                        <path d="M6 3.5l9 5.5-9 5.5V3.5z" />
+                      </svg>
+                    </div>
+                    <div className="db-card-glow" style={{ background: pl.accent }} />
+                    {/* Delete button */}
+                    <button
+                      className="db-card-delete"
+                      onClick={(e) => handleDelete(e, pl.id)}
+                      aria-label={`Delete ${pl.title}`}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      </svg>
+                    </button>
                   </div>
-                  <div className="db-card-play">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor">
-                      <path d="M6 3.5l9 5.5-9 5.5V3.5z" />
-                    </svg>
+                  <div className="db-card-info">
+                    <div className="db-card-mood-chip" style={{ color: pl.accent, borderColor: `${pl.accent}33`, background: `${pl.accent}11` }}>
+                      {pl.moodEmoji} {pl.mood}
+                    </div>
+                    <h3 className="db-card-title">{pl.title}</h3>
+                    <div className="db-card-meta">
+                      <span>{pl.tracks} tracks</span>
+                      <span className="db-card-dot">·</span>
+                      <span>{pl.duration}</span>
+                      <span className="db-card-dot">·</span>
+                      <span className="db-card-date">{pl.date}</span>
+                    </div>
                   </div>
-                  <div className="db-card-glow" style={{ background: pl.accent }} />
                 </div>
-                <div className="db-card-info">
-                  <div className="db-card-mood-chip" style={{ color: pl.accent, borderColor: `${pl.accent}33`, background: `${pl.accent}11` }}>
-                    {pl.moodEmoji} {pl.mood}
-                  </div>
-                  <h3 className="db-card-title">{pl.title}</h3>
-                  <div className="db-card-meta">
-                    <span>{pl.tracks} tracks</span>
-                    <span className="db-card-dot">·</span>
-                    <span>{pl.duration}</span>
-                    <span className="db-card-dot">·</span>
-                    <span className="db-card-date">{pl.date}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="db-empty-state">
+              <div className="db-empty-icon">🎵</div>
+              <h3 className="db-empty-title">No playlists yet</h3>
+              <p className="db-empty-text">
+                Generate your first mood-based playlist and save it here.
+              </p>
+              <button
+                className="db-empty-cta"
+                onClick={() => navigate("/analyze")}
+              >
+                ✦ Generate Your First Playlist
+              </button>
+            </div>
+          )}
         </section>
       </main>
 
@@ -314,19 +304,19 @@ export default function DashboardPage() {
                   <div className="db-settings-section">
                     <h3>Account Details</h3>
                     <div className="db-settings-row">
-                      <div className="db-settings-avatar-big">U</div>
+                      <div className="db-settings-avatar-big">{displayInitial}</div>
                       <div>
-                        <p className="db-settings-name">User</p>
+                        <p className="db-settings-name">{displayName}</p>
                         <button className="db-settings-change-avatar">Change avatar</button>
                       </div>
                     </div>
                     <div className="db-settings-field">
                       <label>Username</label>
-                      <input type="text" defaultValue="User" />
+                      <input type="text" defaultValue={displayName} />
                     </div>
                     <div className="db-settings-field">
                       <label>Email</label>
-                      <input type="email" defaultValue="user@sonar.app" />
+                      <input type="email" placeholder="No email set" />
                     </div>
                     <button className="db-settings-save">Save Changes</button>
                     <div className="db-settings-danger-zone">

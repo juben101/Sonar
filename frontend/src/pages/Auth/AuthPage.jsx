@@ -35,7 +35,7 @@ export default function AuthPage() {
     const result = await login(data.username, data.password);
     if (result.success) {
       addToast("Welcome back! Redirecting...", "success");
-      setTimeout(() => navigate("/"), 1200);
+      setTimeout(() => navigate("/dashboard"), 1200);
     } else {
       addToast(result.error || "Login failed", "error");
     }
@@ -45,7 +45,7 @@ export default function AuthPage() {
     const result = await signup(data.username, data.password);
     if (result.success) {
       addToast("Account created! Redirecting...", "success");
-      setTimeout(() => navigate("/"), 1200);
+      setTimeout(() => navigate("/dashboard"), 1200);
     } else {
       addToast(result.error || "Signup failed", "error");
     }

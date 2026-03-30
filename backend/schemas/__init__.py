@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # ── Request schemas ──
+
 
 class SignupRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_]+$")
@@ -23,13 +24,13 @@ class LogoutRequest(BaseModel):
 
 # ── Response schemas ──
 
+
 class UserResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: str
     username: str
     created_at: str | None = None
-
-    class Config:
-        from_attributes = True
 
 
 class AuthResponse(BaseModel):
@@ -46,3 +47,124 @@ class TokenRefreshResponse(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str
+
+
+# ── Mood analysis schemas ──
+
+
+class MoodAnalyzeRequest(BaseModel):
+    text: str = Field(..., min_length=10, max_length=2000)
+    lat: float | None = None
+    lon: float | None = None
+
+
+class MoodDimension(BaseModel):
+    name: str
+    value: int
+    color: str
+
+
+class WeatherInfo(BaseModel):
+    city: str = ""
+    condition: str = ""
+    description: str = ""
+    temp_c: int = 0
+
+
+class MoodAnalyzeResponse(BaseModel):
+    mood: str
+    moodEmoji: str
+    base_emotion: str
+    sub_emotion: str
+    nuance: str
+    sentiment: str
+    confidence: int
+    explanation: str
+    genre: str
+    genre_reason: str
+    dimensions: list[MoodDimension]
+    weather: WeatherInfo | None = None
+
+
+# ── Transcription schemas ──
+
+
+class TranscribeResponse(BaseModel):
+    text: str
+
+
+# ── Playlist schemas ──
+
+
+class PlaylistRequest(BaseModel):
+    dimensions: list[MoodDimension]
+    preference: str = Field(..., pattern=r"^(match|uplift)$")
+    languages: list[str] = Field(default=["English"])
+    artists: list[str] = Field(default=[])
+    intensity: int = Field(default=50, ge=0, le=100)
+    track_count: int = Field(default=15, ge=5, le=50)
+    genre: str = Field(default="pop")
+    base_emotion: str = Field(default="Calm")
+
+
+class TrackResponse(BaseModel):
+    id: int
+    title: str
+    artist: str
+    duration: str
+    color: str
+    album_art: str = ""
+    preview_url: str = ""
+    spotify_url: str = ""
+
+
+class PlaylistResponse(BaseModel):
+    title: str
+    tracks: list[TrackResponse]
+
+
+# ── Mood history schemas ──
+
+
+class MoodEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    base_emotion: str
+    sub_emotion: str
+    confidence: int
+    sentiment: str
+    genre: str
+    input_preview: str
+    weather_condition: str
+    mood_emoji: str
+    energy: float
+    valence: float
+    created_at: str
+
+
+class EmotionCount(BaseModel):
+    emotion: str
+    count: int
+
+
+class DailyMood(BaseModel):
+    date: str
+    base_emotion: str
+    confidence: int
+    energy: float
+    valence: float
+
+
+class MoodHistoryResponse(BaseModel):
+    entries: list[MoodEntryResponse]
+    total: int
+
+
+class MoodStatsResponse(BaseModel):
+    emotion_distribution: list[EmotionCount]
+    avg_confidence: float
+    total_analyses: int
+    daily_moods: list[DailyMood]
+    top_genre: str
+    dominant_emotion: str

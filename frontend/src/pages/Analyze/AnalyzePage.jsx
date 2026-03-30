@@ -1,6 +1,9 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import StarfieldCanvas from "../../components/StarfieldCanvas";
+import { moodApi } from "../../services/api";
+import Navbar from "../../components/Navbar";
+import Footer from "../../components/Footer";
+import PageLayout from "../../components/PageLayout";
 import "./AnalyzePage.css";
 
 export default function AnalyzePage() {
@@ -13,25 +16,55 @@ export default function AnalyzePage() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioWave, setAudioWave] = useState(Array(40).fill(2));
+  const [_audioBlob, setAudioBlob] = useState(null);
+  const [transcribedText, setTranscribedText] = useState("");
+  const [transcribing, setTranscribing] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
 
   const timerRef = useRef(null);
   const waveRef = useRef(null);
   const progressRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const streamRef = useRef(null);
+  const analyserRef = useRef(null);
 
-  // Recording timer
+  // Request geolocation once on mount (for weather)
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setUserLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        },
+        () => {
+          // User denied or error — no weather, that's fine
+          setUserLocation(null);
+        },
+        { timeout: 5000, maximumAge: 300000 }
+      );
+    }
+  }, []);
+
+  // Real audio wave from MediaRecorder's analyser
+  const updateWaveFromAnalyser = useCallback(() => {
+    if (!analyserRef.current || !isRecording) return;
+    const data = new Uint8Array(analyserRef.current.frequencyBinCount);
+    analyserRef.current.getByteFrequencyData(data);
+    const step = Math.floor(data.length / 40);
+    const bars = Array(40).fill(0).map((_, i) => {
+      const val = data[i * step] || 0;
+      return Math.max(2, (val / 255) * 30);
+    });
+    setAudioWave(bars);
+  }, [isRecording]);
+
+  // Recording timer + wave animation
   useEffect(() => {
     if (isRecording) {
       timerRef.current = setInterval(() => {
         setRecordingTime((t) => t + 1);
       }, 1000);
-      // Animate wave
-      waveRef.current = setInterval(() => {
-        setAudioWave(
-          Array(40)
-            .fill(0)
-            .map(() => Math.random() * 28 + 2)
-        );
-      }, 80);
+      waveRef.current = setInterval(updateWaveFromAnalyser, 80);
     } else {
       clearInterval(timerRef.current);
       clearInterval(waveRef.current);
@@ -43,12 +76,84 @@ export default function AnalyzePage() {
       clearInterval(timerRef.current);
       clearInterval(waveRef.current);
     };
-  }, [isRecording]);
+  }, [isRecording, updateWaveFromAnalyser]);
 
   const formatTime = (s) => {
     const m = Math.floor(s / 60).toString().padStart(2, "0");
     const sec = (s % 60).toString().padStart(2, "0");
     return `${m}:${sec}`;
+  };
+
+  // ── Start real recording ──
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      // Set up analyser for real waveform
+      const audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      analyserRef.current = analyser;
+
+      // Set up MediaRecorder
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : "audio/webm",
+      });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        setAudioBlob(blob);
+        // Stop all tracks
+        stream.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      };
+
+      mediaRecorder.start(250); // Collect chunks every 250ms
+      setRecordingTime(0);
+      setIsRecording(true);
+      setAudioBlob(null);
+      setTranscribedText("");
+    } catch {
+      alert("Microphone access denied. Please allow microphone permissions.");
+    }
+  };
+
+  // ── Stop recording + auto-transcribe ──
+  const stopRecording = async () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+
+    // Wait briefly for onstop to fire and blob to be set
+    await new Promise((r) => setTimeout(r, 300));
+
+    // Auto-transcribe
+    const chunks = audioChunksRef.current;
+    if (chunks.length > 0) {
+      const blob = new Blob(chunks, { type: "audio/webm" });
+      setTranscribing(true);
+      try {
+        const result = await moodApi.transcribe(blob);
+        setTranscribedText(result.text || "");
+      } catch (err) {
+        setTranscribedText("");
+        console.error("Transcription failed:", err);
+      } finally {
+        setTranscribing(false);
+      }
+    }
   };
 
   const PROGRESS_STAGES = [
@@ -60,66 +165,75 @@ export default function AnalyzePage() {
     { pct: 100, label: "Playlist ready ✦" },
   ];
 
-  const startAnalysis = () => {
-    if (mode === "text" && !textInput.trim()) return;
+  const startAnalysis = async () => {
+    const analysisText = mode === "text" ? textInput : transcribedText;
+    if (!analysisText || analysisText.trim().length < 10) return;
+
     setAnalyzing(true);
     setProgress(0);
 
+    // Start the API call with optional location for weather
+    const apiPromise = moodApi.analyze(
+      analysisText,
+      userLocation?.lat || null,
+      userLocation?.lon || null
+    );
+
+    // Animate progress stages while API works
     let stageIndex = 0;
     const runStage = () => {
-      if (stageIndex >= PROGRESS_STAGES.length) {
-        setTimeout(() => navigate("/result"), 600);
-        return;
-      }
-      const stage = PROGRESS_STAGES[stageIndex];
-      setProgressLabel(stage.label);
-
-      const startVal = stageIndex === 0 ? 0 : PROGRESS_STAGES[stageIndex - 1].pct;
-      const endVal = stage.pct;
-      const duration = stageIndex === PROGRESS_STAGES.length - 1 ? 700 : 500 + Math.random() * 400;
-      const startTime = performance.now();
-
-      const animate = (now) => {
-        const elapsed = now - startTime;
-        const t = Math.min(elapsed / duration, 1);
-        const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-        setProgress(startVal + (endVal - startVal) * eased);
-        if (t < 1) {
-          progressRef.current = requestAnimationFrame(animate);
-        } else {
-          stageIndex++;
-          setTimeout(runStage, 200);
+      return new Promise((resolve) => {
+        if (stageIndex >= PROGRESS_STAGES.length) {
+          resolve();
+          return;
         }
-      };
-      progressRef.current = requestAnimationFrame(animate);
+        const stage = PROGRESS_STAGES[stageIndex];
+        setProgressLabel(stage.label);
+
+        const startVal = stageIndex === 0 ? 0 : PROGRESS_STAGES[stageIndex - 1].pct;
+        const endVal = stage.pct;
+        const duration = stageIndex === PROGRESS_STAGES.length - 1 ? 700 : 500 + Math.random() * 400;
+        const startTime = performance.now();
+
+        const animate = (now) => {
+          const elapsed = now - startTime;
+          const t = Math.min(elapsed / duration, 1);
+          const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+          setProgress(startVal + (endVal - startVal) * eased);
+          if (t < 1) {
+            progressRef.current = requestAnimationFrame(animate);
+          } else {
+            stageIndex++;
+            setTimeout(() => resolve(runStage()), 200);
+          }
+        };
+        progressRef.current = requestAnimationFrame(animate);
+      });
     };
 
-    runStage();
+    try {
+      // Run animation and API call in parallel
+      const [analysisResult] = await Promise.all([apiPromise, runStage()]);
+      // Navigate to result with real data
+      setTimeout(() => navigate("/result", { state: { analysis: analysisResult } }), 400);
+    } catch (err) {
+      setAnalyzing(false);
+      setProgress(0);
+      alert(err.message || "Analysis failed. Please try again.");
+    }
   };
 
-  const canAnalyze = mode === "text" ? textInput.trim().length > 0 : recordingTime > 0;
+  const canAnalyze = mode === "text"
+    ? textInput.trim().length >= 10
+    : (transcribedText.trim().length >= 10 || (recordingTime > 0 && !transcribing));
 
   return (
-    <div className="az-root">
-      <StarfieldCanvas starCount={55} />
-      <div className="az-glow az-glow-1" />
-      <div className="az-glow az-glow-2" />
-
-      {/* ── Navbar ── */}
-      <nav className="az-nav">
-        <div className="az-nav-inner">
-          <div className="az-nav-logo" onClick={() => navigate("/dashboard")}>
-            <span className="az-nav-logo-icon">🎵</span>
-            <span className="az-nav-logo-text">Sonar</span>
-          </div>
-          <div className="az-nav-center">
-            <span className="az-nav-tag">Mood Analysis</span>
-          </div>
-          <button className="az-nav-back" onClick={() => navigate("/dashboard")}>
-            ← Back to Library
-          </button>
-        </div>
-      </nav>
+    <PageLayout>
+      <Navbar
+        centerLabel="Mood Analysis"
+        showBack
+        backTo="/dashboard"
+      />
 
       {/* ── Main ── */}
       <main className="az-main">
@@ -185,7 +299,16 @@ export default function AnalyzePage() {
                 </div>
               ) : (
                 <div className="az-voice-panel">
-                  <div className="az-voice-visualizer">
+                  <div className={`az-voice-visualizer ${isRecording ? "az-voice-visualizer--active" : ""}`}>
+                    {/* Recording status badge */}
+                    <div className={`az-rec-status ${isRecording ? "az-rec-status--live" : ""}`}>
+                      <span className="az-rec-dot" />
+                      <span className="az-rec-text">
+                        {isRecording ? "RECORDING" : transcribing ? "TRANSCRIBING..." : recordingTime > 0 ? "RECORDED" : "READY"}
+                      </span>
+                    </div>
+
+                    {/* Waveform visualizer */}
                     <div className="az-wave-bars">
                       {audioWave.map((h, i) => (
                         <div
@@ -193,60 +316,100 @@ export default function AnalyzePage() {
                           className="az-wave-bar"
                           style={{
                             height: `${h}px`,
-                            opacity: isRecording ? 0.7 + (h / 30) * 0.3 : 0.2,
+                            opacity: isRecording ? 0.6 + (h / 30) * 0.4 : 0.15,
                             background: isRecording
-                              ? `hsl(${340 + i * 2}, 80%, 60%)`
-                              : "rgba(255,255,255,0.2)",
-                            transition: isRecording ? "height 0.08s ease" : "all 0.3s ease",
+                              ? `linear-gradient(to top, hsl(${340 + i * 2}, 85%, 55%), hsl(${340 + i * 2}, 90%, 72%))`
+                              : "rgba(255,255,255,0.15)",
+                            transition: isRecording ? "height 0.06s ease" : "all 0.4s ease",
+                            boxShadow: isRecording && h > 15
+                              ? `0 0 ${Math.round(h / 4)}px hsl(${340 + i * 2}, 80%, 55%)`
+                              : "none",
                           }}
                         />
                       ))}
                     </div>
-                    <div className="az-voice-timer">{formatTime(recordingTime)}</div>
+
+                    {/* Timer */}
+                    <div className={`az-voice-timer ${isRecording ? "az-voice-timer--live" : ""}`}>
+                      {formatTime(recordingTime)}
+                    </div>
                   </div>
 
-                  <button
-                    className={`az-record-btn ${isRecording ? "az-record-btn--recording" : ""}`}
-                    onClick={() => {
-                      if (isRecording) {
-                        setIsRecording(false);
-                      } else {
-                        setRecordingTime(0);
-                        setIsRecording(true);
-                      }
-                    }}
-                    aria-label={isRecording ? "Stop recording" : "Start recording"}
-                  >
-                    <div className="az-record-btn-glow" />
-                    <div className="az-record-icon">
-                      {isRecording ? (
-                        <div className="az-stop-icon" />
-                      ) : (
-                        <svg width="22" height="22" viewBox="0 0 22 22" fill="currentColor">
-                          <rect x="7" y="3" width="8" height="12" rx="4" />
-                          <path d="M4 11a7 7 0 0014 0M11 18v2M8 20h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-                        </svg>
-                      )}
-                    </div>
-                    <span className="az-record-label">
-                      {isRecording ? "Tap to stop" : "Hold to record"}
-                    </span>
-                  </button>
+                  {/* Record button with ring animations */}
+                  <div className="az-record-wrap">
+                    {isRecording && (
+                      <>
+                        <div className="az-record-ring az-record-ring-1" />
+                        <div className="az-record-ring az-record-ring-2" />
+                        <div className="az-record-ring az-record-ring-3" />
+                      </>
+                    )}
+                    <button
+                      className={`az-record-btn ${isRecording ? "az-record-btn--recording" : ""}`}
+                      onClick={isRecording ? stopRecording : startRecording}
+                      disabled={transcribing}
+                      aria-label={isRecording ? "Stop recording" : "Start recording"}
+                    >
+                      <div className="az-record-btn-glow" />
+                      <div className="az-record-icon">
+                        {isRecording ? (
+                          <div className="az-stop-icon" />
+                        ) : (
+                          <svg width="22" height="22" viewBox="0 0 22 22" fill="currentColor">
+                            <rect x="7" y="3" width="8" height="12" rx="4" />
+                            <path d="M4 11a7 7 0 0014 0M11 18v2M8 20h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className="az-record-label">
+                        {transcribing ? "Transcribing..." : isRecording ? "Tap to stop" : "Tap to record"}
+                      </span>
+                    </button>
+                  </div>
 
-                  {recordingTime > 0 && !isRecording && (
-                    <p className="az-voice-done">
-                      ✓ {formatTime(recordingTime)} recorded — ready to analyze
-                    </p>
+                  {/* Transcription result */}
+                  {transcribedText && !isRecording && (
+                    <div className="az-voice-done">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <circle cx="8" cy="8" r="7" stroke="#4ade80" strokeWidth="1.5" />
+                        <path d="M5 8l2 2 4-4" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span>Transcribed — ready to analyze</span>
+                    </div>
+                  )}
+
+                  {transcribedText && (
+                    <div className="az-transcribed-preview">
+                      <div className="az-transcribed-label">What we heard:</div>
+                      <p className="az-transcribed-text">&ldquo;{transcribedText}&rdquo;</p>
+                    </div>
+                  )}
+
+                  {recordingTime > 0 && !isRecording && !transcribedText && !transcribing && (
+                    <div className="az-voice-done">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <circle cx="8" cy="8" r="7" stroke="#4ade80" strokeWidth="1.5" />
+                        <path d="M5 8l2 2 4-4" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span>{formatTime(recordingTime)} captured — ready to analyze</span>
+                    </div>
                   )}
                 </div>
               )}
             </div>
 
+            {/* Location hint */}
+            {userLocation && (
+              <div className="az-location-hint">
+                🌤 Weather context enabled — your local weather will influence genre recommendations
+              </div>
+            )}
+
             {/* Analyze CTA */}
             <button
               className={`az-analyze-btn ${canAnalyze ? "az-analyze-btn--ready" : ""}`}
               onClick={startAnalysis}
-              disabled={!canAnalyze}
+              disabled={!canAnalyze || transcribing}
             >
               <div className="az-analyze-btn-glow" />
               <span>Analyze My Mood</span>
@@ -305,31 +468,7 @@ export default function AnalyzePage() {
         )}
       </main>
 
-      {/* ── Footer ── */}
-      <footer className="az-footer">
-        <div className="az-footer-inner">
-          <div className="az-footer-brand">
-            <span className="az-nav-logo-icon">🎵</span>
-            <span className="az-nav-logo-text">Sonar</span>
-            <p className="az-footer-desc">AI-powered emotion-aware music platform.</p>
-          </div>
-          <div className="az-footer-links">
-            <div className="az-footer-col">
-              <h4>Product</h4>
-              <a href="#">Features</a>
-              <a href="#">How It Works</a>
-            </div>
-            <div className="az-footer-col">
-              <h4>Company</h4>
-              <a href="#">About</a>
-              <a href="#">Contact</a>
-            </div>
-          </div>
-        </div>
-        <div className="az-footer-bottom">
-          <p>© 2026 Sonar. All rights reserved.</p>
-        </div>
-      </footer>
-    </div>
+      <Footer />
+    </PageLayout>
   );
 }
