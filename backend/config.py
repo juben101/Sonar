@@ -30,10 +30,6 @@ class Settings(BaseSettings):
     # ── Weather (OpenWeatherMap) ──
     OPENWEATHERMAP_API_KEY: str = ""
 
-    # ── Spotify ──
-    SPOTIFY_CLIENT_ID: str = ""
-    SPOTIFY_CLIENT_SECRET: str = ""
-
     @property
     def cors_origin_list(self) -> List[str]:
         """Parse comma-separated CORS origins into a list."""

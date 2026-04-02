@@ -1,17 +1,17 @@
 """
-Mood Service — orchestrates transcription, weather, LLM analysis, and Spotify.
+Mood Service — orchestrates transcription, weather, LLM analysis, and YouTube Music.
 
 This is the high-level service called by routes. It delegates to:
   - transcription_service.transcribe_audio() for speech → text
   - weather_service.get_weather() for location → weather context
   - llm_service.analyze_emotion() for text → emotion
-  - spotify_service.get_recommendations() for emotion → playlist
+  - ytmusic_service.get_recommendations() for emotion → playlist
 """
 
 import logging
 
 from services.llm_service import analyze_emotion
-from services.spotify_service import get_recommendations
+from services.ytmusic_service import get_recommendations, get_audio_stream_url
 from services.transcription_service import transcribe_audio
 from services.weather_service import get_weather
 
@@ -53,8 +53,9 @@ async def generate_playlist(
     track_count: int = 15,
     genre: str = "pop",
     base_emotion: str = "Calm",
+    sub_emotion: str = "",
 ) -> dict:
-    """Generate a Spotify playlist based on mood analysis results."""
+    """Generate a YouTube Music playlist based on mood analysis results."""
     tracks = await get_recommendations(
         genre=genre,
         languages=languages,
@@ -63,9 +64,15 @@ async def generate_playlist(
         track_count=track_count,
         preference=preference,
         base_emotion=base_emotion,
+        sub_emotion=sub_emotion,
     )
 
     # Determine playlist name from emotion + genre
     title = f"{base_emotion} · {genre.title()}"
 
     return {"title": title, "tracks": tracks}
+
+
+async def stream_audio(video_id: str) -> str:
+    """Get audio stream URL for a YouTube Music track."""
+    return await get_audio_stream_url(video_id)

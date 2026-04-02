@@ -114,8 +114,8 @@ class TrackResponse(BaseModel):
     duration: str
     color: str
     album_art: str = ""
-    preview_url: str = ""
-    spotify_url: str = ""
+    video_id: str = ""
+    youtube_url: str = ""
 
 
 class PlaylistResponse(BaseModel):
