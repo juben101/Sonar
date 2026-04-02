@@ -61,7 +61,7 @@ export default function DashboardPage() {
       {/* ── Navbar ── */}
       <nav className="db-nav">
         <div className="db-nav-inner">
-          <div className="db-nav-logo" onClick={() => navigate("/")}>
+          <div className="db-nav-logo" onClick={() => navigate("/dashboard")}>
             <span className="db-nav-logo-icon">🎵</span>
             <span className="db-nav-logo-text">Sonar</span>
           </div>

@@ -18,7 +18,7 @@ export default function Navbar({
   backTo = "/dashboard",
   backLabel = "← Back to Library",
   rightContent,
-  onLogoClick = "/",
+  onLogoClick = "/dashboard",
 }) {
   const navigate = useNavigate();
 
