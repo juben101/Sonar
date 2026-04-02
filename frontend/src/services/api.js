@@ -165,4 +165,19 @@ export const moodApi = {
 
   stats: (days = 30) =>
     api.get(`/v1/mood/stats?days=${days}`),
+
+  // Song preferences (like/dislike)
+  setPreference: (songKey, preference, songTitle = "", songArtist = "") =>
+    api.put("/v1/mood/songs/preference", {
+      song_key: songKey,
+      preference,
+      song_title: songTitle,
+      song_artist: songArtist,
+    }),
+
+  removePreference: (songKey) =>
+    api.delete(`/v1/mood/songs/preference/${encodeURIComponent(songKey)}`),
+
+  getPreferences: (songKeys) =>
+    api.post("/v1/mood/songs/preferences", { song_keys: songKeys }),
 };

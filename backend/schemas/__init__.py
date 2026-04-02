@@ -168,3 +168,26 @@ class MoodStatsResponse(BaseModel):
     daily_moods: list[DailyMood]
     top_genre: str
     dominant_emotion: str
+
+
+# ── Song Preference schemas ──
+
+
+class SongPreferenceRequest(BaseModel):
+    song_key: str = Field(..., min_length=1, max_length=255)
+    preference: str = Field(..., pattern=r"^(like|dislike)$")
+    song_title: str = Field(default="", max_length=255)
+    song_artist: str = Field(default="", max_length=255)
+
+
+class SongPreferenceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    song_key: str
+    preference: str
+    song_title: str
+    song_artist: str
+
+
+class SongPreferenceBatchResponse(BaseModel):
+    preferences: dict[str, str]  # {song_key: "like"|"dislike"}

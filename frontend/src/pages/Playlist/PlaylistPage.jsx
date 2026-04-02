@@ -4,6 +4,7 @@ import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import PageLayout from "../../components/PageLayout";
 import usePlaylistStore from "../../stores/usePlaylistStore";
+import { moodApi } from "../../services/api";
 import "./PlaylistPage.css";
 
 export default function PlaylistPage() {
@@ -17,6 +18,7 @@ export default function PlaylistPage() {
   const [saved, setSaved] = useState(false);
   const [volume, setVolume] = useState(0.5);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [songPrefs, setSongPrefs] = useState({}); // {song_key: "like"|"dislike"}
   const audioRef = useRef(null);
   const progressTimer = useRef(null);
   const { savePlaylist, isPlaylistSaved } = usePlaylistStore();
@@ -26,6 +28,15 @@ export default function PlaylistPage() {
       navigate("/analyze", { replace: true });
     } else {
       setSaved(isPlaylistSaved(data.playlist.title));
+      // Fetch user's song preferences for all tracks in this playlist
+      const songKeys = data.playlist.tracks
+        .map((t) => t.spotify_url || `${t.title}::${t.artist}`)
+        .filter(Boolean);
+      if (songKeys.length > 0) {
+        moodApi.getPreferences(songKeys).then((res) => {
+          setSongPrefs(res.preferences || {});
+        }).catch(() => {});
+      }
     }
   }, [data, navigate, isPlaylistSaved]);
 
@@ -133,6 +144,36 @@ export default function PlaylistPage() {
     setSaved(true);
   };
 
+  // ── Like / Dislike ──
+  const getSongKey = (track) => track.spotify_url || `${track.title}::${track.artist}`;
+
+  const handlePreference = async (track, pref) => {
+    const key = getSongKey(track);
+    const current = songPrefs[key];
+
+    if (current === pref) {
+      // Toggle off — remove preference
+      setSongPrefs((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      try {
+        await moodApi.removePreference(key);
+      } catch (err) {
+        console.error("Failed to remove preference:", err);
+      }
+    } else {
+      // Set new preference
+      setSongPrefs((prev) => ({ ...prev, [key]: pref }));
+      try {
+        await moodApi.setPreference(key, pref, track.title, track.artist);
+      } catch (err) {
+        console.error("Failed to set preference:", err);
+      }
+    }
+  };
+
   if (!data?.playlist) return null;
 
   const { playlist, analysis, preference, settings } = data;
@@ -238,6 +279,15 @@ export default function PlaylistPage() {
 
                   {/* Transport buttons */}
                   <div className="pl-controls-transport">
+                    <button
+                      className={`pl-ctrl-btn pl-ctrl-btn--pref ${songPrefs[getSongKey(playingTrack)] === "dislike" ? "pl-ctrl-btn--disliked" : ""}`}
+                      onClick={(e) => { e.stopPropagation(); handlePreference(playingTrack, "dislike"); }}
+                      aria-label="Dislike"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zm7-13h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17" />
+                      </svg>
+                    </button>
                     <button className="pl-ctrl-btn" onClick={handlePrev} aria-label="Previous">
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M3 2h2v12H3V2zm11 6L6 14V2l8 6z" />
@@ -256,6 +306,15 @@ export default function PlaylistPage() {
                     <button className="pl-ctrl-btn" onClick={handleNext} aria-label="Next">
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M11 2h2v12h-2V2zM2 8l8 6V2L2 8z" />
+                      </svg>
+                    </button>
+                    <button
+                      className={`pl-ctrl-btn pl-ctrl-btn--pref ${songPrefs[getSongKey(playingTrack)] === "like" ? "pl-ctrl-btn--liked" : ""}`}
+                      onClick={(e) => { e.stopPropagation(); handlePreference(playingTrack, "like"); }}
+                      aria-label="Like"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" />
                       </svg>
                     </button>
                   </div>
@@ -353,6 +412,26 @@ export default function PlaylistPage() {
                     <span className="pl-track-artist">{track.artist}</span>
                   </div>
 
+                  <div className="pl-track-prefs">
+                    <button
+                      className={`pl-track-pref-btn ${songPrefs[getSongKey(track)] === "dislike" ? "pl-track-pref-btn--disliked" : ""}`}
+                      onClick={(e) => { e.stopPropagation(); handlePreference(track, "dislike"); }}
+                      aria-label={`Dislike ${track.title}`}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zm7-13h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17" />
+                      </svg>
+                    </button>
+                    <button
+                      className={`pl-track-pref-btn ${songPrefs[getSongKey(track)] === "like" ? "pl-track-pref-btn--liked" : ""}`}
+                      onClick={(e) => { e.stopPropagation(); handlePreference(track, "like"); }}
+                      aria-label={`Like ${track.title}`}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" />
+                      </svg>
+                    </button>
+                  </div>
                   <span className="pl-track-duration">{track.duration}</span>
 
                   {track.preview_url ? (

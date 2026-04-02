@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
 import usePlaylistStore from "../stores/usePlaylistStore";
 
 // ══════════════════════════════════════

@@ -11,6 +11,7 @@ from database import get_db
 from dependencies.auth import get_current_user
 from limiter import limiter
 from models.mood_entry import MoodEntry
+from models.song_preference import SongPreference
 from models.user import User
 from schemas import (
     MoodAnalyzeRequest,
@@ -19,6 +20,9 @@ from schemas import (
     MoodStatsResponse,
     PlaylistRequest,
     PlaylistResponse,
+    SongPreferenceBatchResponse,
+    SongPreferenceRequest,
+    SongPreferenceResponse,
     TranscribeResponse,
 )
 from services.mood_service import (
@@ -227,3 +231,98 @@ async def get_playlist(
         base_emotion=body.base_emotion,
     )
     return PlaylistResponse(**playlist)
+
+
+# ══════════════════════════════════════
+#  Song Preference Endpoints
+# ══════════════════════════════════════
+
+
+@router.put("/songs/preference", response_model=SongPreferenceResponse)
+@limiter.limit("60/minute")
+async def set_song_preference(
+    request: Request,
+    body: SongPreferenceRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongPreferenceResponse:
+    """Set or update a like/dislike preference for a song (upsert)."""
+    # Check if preference already exists
+    result = await db.execute(
+        select(SongPreference).where(
+            SongPreference.user_id == current_user.id,
+            SongPreference.song_key == body.song_key,
+        )
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        existing.preference = body.preference
+        existing.song_title = body.song_title or existing.song_title
+        existing.song_artist = body.song_artist or existing.song_artist
+    else:
+        pref = SongPreference(
+            user_id=current_user.id,
+            song_key=body.song_key,
+            preference=body.preference,
+            song_title=body.song_title,
+            song_artist=body.song_artist,
+        )
+        db.add(pref)
+
+    await db.commit()
+
+    return SongPreferenceResponse(
+        song_key=body.song_key,
+        preference=body.preference,
+        song_title=body.song_title,
+        song_artist=body.song_artist,
+    )
+
+
+@router.delete("/songs/preference/{song_key}")
+@limiter.limit("60/minute")
+async def remove_song_preference(
+    request: Request,
+    song_key: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove a like/dislike preference for a song."""
+    result = await db.execute(
+        select(SongPreference).where(
+            SongPreference.user_id == current_user.id,
+            SongPreference.song_key == song_key,
+        )
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        await db.delete(existing)
+        await db.commit()
+    return {"status": "ok"}
+
+
+@router.post("/songs/preferences", response_model=SongPreferenceBatchResponse)
+@limiter.limit("30/minute")
+async def get_song_preferences(
+    request: Request,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongPreferenceBatchResponse:
+    """Get preferences for a batch of song keys. Body: {"song_keys": [...]}"""
+    song_keys = body.get("song_keys", [])
+    if not song_keys:
+        return SongPreferenceBatchResponse(preferences={})
+
+    result = await db.execute(
+        select(SongPreference).where(
+            SongPreference.user_id == current_user.id,
+            SongPreference.song_key.in_(song_keys),
+        )
+    )
+    prefs = result.scalars().all()
+
+    return SongPreferenceBatchResponse(
+        preferences={p.song_key: p.preference for p in prefs}
+    )
