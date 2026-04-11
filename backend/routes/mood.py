@@ -247,6 +247,7 @@ async def get_stream(
         return {"audio_url": audio_url}
     except Exception as e:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=502, detail=f"Could not extract audio: {e}")
 
 

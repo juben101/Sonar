@@ -23,7 +23,7 @@ class SongPreference(Base):
         nullable=False,
         index=True,
     )
-    # Unique song identifier (spotify_url or title+artist hash)
+    # Unique song identifier (youtube_url or title::artist)
     song_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     # "like" or "dislike"
     preference: Mapped[str] = mapped_column(String(10), nullable=False)
