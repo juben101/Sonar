@@ -12,6 +12,24 @@ const LANGUAGE_OPTIONS = [
   "Portuguese", "German", "Italian", "Mandarin",
 ];
 
+// Artists organized by language for curated selection
+const ARTISTS_BY_LANGUAGE = {
+  English: ["Taylor Swift", "The Weeknd", "Adele", "Ed Sheeran", "Billie Eilish", "Drake", "Dua Lipa", "Harry Styles", "SZA", "Coldplay", "Bon Iver", "Post Malone", "Olivia Rodrigo", "Kendrick Lamar", "Arctic Monkeys"],
+  Hindi: ["Arijit Singh", "Shreya Ghoshal", "Pritam", "A.R. Rahman", "Neha Kakkar", "Atif Aslam", "Jubin Nautiyal", "Lata Mangeshkar", "Kishore Kumar", "Vishal-Shekhar"],
+  Spanish: ["Bad Bunny", "Shakira", "Rosalía", "J Balvin", "Daddy Yankee", "Ozuna", "Enrique Iglesias", "Karol G", "Rauw Alejandro", "Maluma"],
+  Korean: ["BTS", "BLACKPINK", "Stray Kids", "NewJeans", "IU", "EXO", "TWICE", "Seventeen", "aespa", "(G)I-DLE"],
+  Japanese: ["YOASOBI", "Ado", "Kenshi Yonezu", "LiSA", "Official HIGE DANdism", "King Gnu", "Fujii Kaze", "Aimer", "ONE OK ROCK", "back number"],
+  French: ["Stromae", "Aya Nakamura", "Édith Piaf", "Angèle", "Daft Punk", "Indila", "Maître Gims", "Zaz", "Jul", "Ninho"],
+  Tamil: ["Anirudh Ravichander", "Yuvan Shankar Raja", "Sid Sriram", "Ilaiyaraaja", "A.R. Rahman", "D. Imman", "Chinmayi", "SPB", "Haricharan", "Andrea Jeremiah"],
+  Telugu: ["S. Thaman", "Sid Sriram", "Anirudh Ravichander", "Devi Sri Prasad", "M.M. Keeravani", "Armaan Malik", "Shreya Ghoshal", "Haricharan", "Yazin Nizar", "Mangli"],
+  Punjabi: ["Diljit Dosanjh", "AP Dhillon", "Sidhu Moose Wala", "Guru Randhawa", "Honey Singh", "Jass Manak", "Karan Aujla", "Hardy Sandhu", "Ammy Virk", "B Praak"],
+  Arabic: ["Amr Diab", "Nancy Ajram", "Fairuz", "Mohamed Hamaki", "Elissa", "Tamer Hosny", "Wael Kfoury", "Sherine", "Angham", "Kadim Al Sahir"],
+  Portuguese: ["Anitta", "Jorge Ben Jor", "Caetano Veloso", "Tom Jobim", "Sertanejo", "Luísa Sonza", "Henrique & Juliano", "Marília Mendonça", "Gilberto Gil", "Seu Jorge"],
+  German: ["Rammstein", "Nena", "Kraftwerk", "Tokio Hotel", "Peter Fox", "Mark Forster", "Tim Bendzko", "AnnenMayKantereit", "Cro", "Apache 207"],
+  Italian: ["Måneskin", "Andrea Bocelli", "Laura Pausini", "Eros Ramazzotti", "Mahmood", "Blanco", "Tiziano Ferro", "Gianni Morandi", "Mina", "Elodie"],
+  Mandarin: ["Jay Chou", "JJ Lin", "Jolin Tsai", "G.E.M.", "Eason Chan", "Khalil Fong", "Hebe Tien", "Leehom Wang", "Faye Wong", "Zhou Shen"],
+};
+
 export default function ResultPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -19,10 +37,12 @@ export default function ResultPage() {
 
   const [preference, setPreference] = useState(null); // "match" | "uplift"
   const [languages, setLanguages] = useState(["English"]);
-  const [artistInput, setArtistInput] = useState("");
+  const [selectedArtists, setSelectedArtists] = useState([]);
   const [intensity, setIntensity] = useState(50);
   const [trackCount, setTrackCount] = useState(15);
   const [generating, setGenerating] = useState(false);
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const [artistDropdownOpen, setArtistDropdownOpen] = useState(false);
 
   const customRef = useRef(null);
 
@@ -42,11 +62,30 @@ export default function ResultPage() {
     }
   }, [preference]);
 
+  // Build available artists from selected languages
+  const availableArtists = languages.flatMap(
+    (lang) => (ARTISTS_BY_LANGUAGE[lang] || []).map((a) => ({ name: a, lang }))
+  );
+
+  // Remove artists from selection if their language is deselected
+  useEffect(() => {
+    const validNames = new Set(availableArtists.map((a) => a.name));
+    setSelectedArtists((prev) => prev.filter((a) => validNames.has(a)));
+  }, [languages]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const toggleLanguage = (lang) => {
     setLanguages((prev) =>
       prev.includes(lang)
-        ? prev.filter((l) => l !== lang)
+        ? prev.length > 1 ? prev.filter((l) => l !== lang) : prev // keep at least 1
         : [...prev, lang]
+    );
+  };
+
+  const toggleArtist = (name) => {
+    setSelectedArtists((prev) =>
+      prev.includes(name)
+        ? prev.filter((a) => a !== name)
+        : [...prev, name]
     );
   };
 
@@ -55,16 +94,11 @@ export default function ResultPage() {
     setGenerating(true);
 
     try {
-      const artists = artistInput
-        .split(",")
-        .map((a) => a.trim())
-        .filter(Boolean);
-
       const data = await moodApi.playlist(
         analysisData.dimensions,
         preference,
         languages,
-        artists,
+        selectedArtists,
         intensity,
         trackCount,
         analysisData.genre,
@@ -76,7 +110,7 @@ export default function ResultPage() {
           playlist: data,
           analysis: analysisData,
           preference,
-          settings: { languages, artists, intensity, trackCount },
+          settings: { languages, artists: selectedArtists, intensity, trackCount },
         },
       });
     } catch {
@@ -231,33 +265,99 @@ export default function ResultPage() {
                 Choose your language preferences and music intensity.
               </p>
 
-              {/* Languages */}
+              {/* Language Dropdown */}
               <div className="rp-field">
                 <label className="rp-field-label">Languages</label>
-                <div className="rp-language-tags">
-                  {LANGUAGE_OPTIONS.map((lang) => (
-                    <button
-                      key={lang}
-                      className={`rp-lang-tag ${languages.includes(lang) ? "rp-lang-tag--active" : ""}`}
-                      onClick={() => toggleLanguage(lang)}
-                    >
-                      {lang}
-                    </button>
-                  ))}
+                <div className="rp-dropdown">
+                  <button
+                    className="rp-dropdown-trigger"
+                    onClick={() => { setLangDropdownOpen(!langDropdownOpen); setArtistDropdownOpen(false); }}
+                    type="button"
+                  >
+                    <span className="rp-dropdown-text">
+                      {languages.length > 0 ? languages.join(", ") : "Select languages"}
+                    </span>
+                    <svg className={`rp-dropdown-arrow ${langDropdownOpen ? "rp-dropdown-arrow--open" : ""}`} width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                      <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                    </svg>
+                  </button>
+                  {langDropdownOpen && (
+                    <div className="rp-dropdown-menu">
+                      {LANGUAGE_OPTIONS.map((lang) => (
+                        <button
+                          key={lang}
+                          className={`rp-dropdown-item ${languages.includes(lang) ? "rp-dropdown-item--active" : ""}`}
+                          onClick={() => toggleLanguage(lang)}
+                          type="button"
+                        >
+                          <span className="rp-dropdown-check">
+                            {languages.includes(lang) ? "✓" : ""}
+                          </span>
+                          {lang}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Artists */}
+              {/* Artists Dropdown (based on selected languages) */}
               <div className="rp-field">
                 <label className="rp-field-label">Artists <span className="rp-field-opt">(optional)</span></label>
-                <input
-                  type="text"
-                  className="rp-artist-input"
-                  placeholder="e.g. Bon Iver, Adele, The Weeknd"
-                  value={artistInput}
-                  onChange={(e) => setArtistInput(e.target.value)}
-                />
-                <span className="rp-field-hint">Separate multiple artists with commas</span>
+                <div className="rp-dropdown">
+                  <button
+                    className="rp-dropdown-trigger"
+                    onClick={() => { setArtistDropdownOpen(!artistDropdownOpen); setLangDropdownOpen(false); }}
+                    type="button"
+                  >
+                    <span className="rp-dropdown-text">
+                      {selectedArtists.length > 0 ? selectedArtists.join(", ") : "Select artists"}
+                    </span>
+                    <svg className={`rp-dropdown-arrow ${artistDropdownOpen ? "rp-dropdown-arrow--open" : ""}`} width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
+                      <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                    </svg>
+                  </button>
+                  {artistDropdownOpen && (
+                    <div className="rp-dropdown-menu">
+                      {availableArtists.length === 0 ? (
+                        <div className="rp-dropdown-empty">Select a language first</div>
+                      ) : (
+                        languages.map((lang) => {
+                          const langArtists = ARTISTS_BY_LANGUAGE[lang] || [];
+                          if (langArtists.length === 0) return null;
+                          return (
+                            <div key={lang}>
+                              <div className="rp-dropdown-group">{lang}</div>
+                              {langArtists.map((name) => (
+                                <button
+                                  key={name}
+                                  className={`rp-dropdown-item ${selectedArtists.includes(name) ? "rp-dropdown-item--active" : ""}`}
+                                  onClick={() => toggleArtist(name)}
+                                  type="button"
+                                >
+                                  <span className="rp-dropdown-check">
+                                    {selectedArtists.includes(name) ? "✓" : ""}
+                                  </span>
+                                  {name}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+                {selectedArtists.length > 0 && (
+                  <div className="rp-selected-tags">
+                    {selectedArtists.map((a) => (
+                      <span key={a} className="rp-selected-tag">
+                        {a}
+                        <button className="rp-selected-tag-x" onClick={() => toggleArtist(a)} type="button">×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Intensity Slider */}
@@ -287,10 +387,10 @@ export default function ResultPage() {
                   <span className="rp-slider-value">{trackCount}</span>
                 </div>
                 <div className="rp-slider-wrap">
-                  <span className="rp-slider-end">5</span>
+                  <span className="rp-slider-end">2</span>
                   <input
                     type="range"
-                    min="5"
+                    min="2"
                     max="50"
                     value={trackCount}
                     onChange={(e) => setTrackCount(Number(e.target.value))}

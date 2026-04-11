@@ -102,7 +102,7 @@ class PlaylistRequest(BaseModel):
     languages: list[str] = Field(default=["English"])
     artists: list[str] = Field(default=[])
     intensity: int = Field(default=50, ge=0, le=100)
-    track_count: int = Field(default=15, ge=5, le=50)
+    track_count: int = Field(default=15, ge=2, le=50)
     genre: str = Field(default="pop")
     base_emotion: str = Field(default="Calm")
 
