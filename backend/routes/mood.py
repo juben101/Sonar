@@ -202,6 +202,74 @@ async def get_mood_stats(
     # Dominant emotion
     dominant_emotion = emotion_counts.most_common(1)[0][0] if emotion_counts else ""
 
+    # ── Streak (consecutive days with at least 1 analysis) ──
+    today = datetime.now(timezone.utc).date()
+    analysis_dates = sorted(
+        set(e.created_at.date() for e in entries if e.created_at), reverse=True
+    )
+    streak = 0
+    expected = today
+    for d in analysis_dates:
+        if d == expected:
+            streak += 1
+            expected -= timedelta(days=1)
+        elif d == expected - timedelta(days=1):
+            # Allow yesterday as start
+            expected = d
+            streak += 1
+            expected -= timedelta(days=1)
+        else:
+            break
+
+    # ── Week-over-Week Comparison ──
+    now = datetime.now(timezone.utc)
+    this_week_start = now - timedelta(days=7)
+    last_week_start = now - timedelta(days=14)
+
+    this_week = [e for e in entries if e.created_at and e.created_at >= this_week_start]
+    last_week = [
+        e for e in entries
+        if e.created_at and last_week_start <= e.created_at < this_week_start
+    ]
+
+    def avg_or_zero(items, attr):
+        vals = [getattr(e, attr, 0) for e in items]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    week_comparison = {
+        "this_week_analyses": len(this_week),
+        "last_week_analyses": len(last_week),
+        "confidence_delta": round(
+            avg_or_zero(this_week, "confidence") - avg_or_zero(last_week, "confidence"), 1
+        ),
+        "energy_delta": round(
+            avg_or_zero(this_week, "energy") - avg_or_zero(last_week, "energy"), 1
+        ),
+        "valence_delta": round(
+            avg_or_zero(this_week, "valence") - avg_or_zero(last_week, "valence"), 1
+        ),
+    }
+
+    # ── Calendar Heatmap Data (last 90 days) ──
+    cal_start = now - timedelta(days=90)
+    cal_entries = [e for e in entries if e.created_at and e.created_at >= cal_start]
+    cal_map = {}
+    for e in cal_entries:
+        day_key = e.created_at.strftime("%Y-%m-%d")
+        if day_key not in cal_map:
+            cal_map[day_key] = {"count": 0, "emotions": []}
+        cal_map[day_key]["count"] += 1
+        cal_map[day_key]["emotions"].append(e.base_emotion)
+
+    calendar_data = []
+    for day_key, info in sorted(cal_map.items()):
+        dominant = Counter(info["emotions"]).most_common(1)[0][0] if info["emotions"] else ""
+        calendar_data.append({
+            "date": day_key,
+            "count": info["count"],
+            "dominant_emotion": dominant,
+        })
+
     return MoodStatsResponse(
         emotion_distribution=emotion_distribution,
         avg_confidence=round(avg_confidence, 1),
@@ -209,6 +277,9 @@ async def get_mood_stats(
         daily_moods=daily_moods,
         top_genre=top_genre,
         dominant_emotion=dominant_emotion,
+        streak=streak,
+        week_comparison=week_comparison,
+        calendar_data=calendar_data,
     )
 
 

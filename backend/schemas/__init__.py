@@ -164,6 +164,20 @@ class MoodHistoryResponse(BaseModel):
     total: int
 
 
+class WeekComparison(BaseModel):
+    this_week_analyses: int = 0
+    last_week_analyses: int = 0
+    confidence_delta: float = 0.0
+    energy_delta: float = 0.0
+    valence_delta: float = 0.0
+
+
+class CalendarDay(BaseModel):
+    date: str
+    count: int
+    dominant_emotion: str = ""
+
+
 class MoodStatsResponse(BaseModel):
     emotion_distribution: list[EmotionCount]
     avg_confidence: float
@@ -171,6 +185,9 @@ class MoodStatsResponse(BaseModel):
     daily_moods: list[DailyMood]
     top_genre: str
     dominant_emotion: str
+    streak: int = 0
+    week_comparison: WeekComparison = WeekComparison()
+    calendar_data: list[CalendarDay] = []
 
 
 # ── Song Preference schemas ──
