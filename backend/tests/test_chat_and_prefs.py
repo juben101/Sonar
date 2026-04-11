@@ -10,6 +10,7 @@ from httpx import Response
 
 # ── Helpers ──
 
+
 async def signup_and_get_headers(client, username="chattester"):
     """Helper to create a user and return auth headers."""
     resp = await client.post(
@@ -81,7 +82,10 @@ async def test_chat_message_with_history(client):
             "message": "Can you tell me more?",
             "history": [
                 {"role": "user", "content": "I feel sad today"},
-                {"role": "assistant", "content": "I'm sorry to hear that. What's going on?"},
+                {
+                    "role": "assistant",
+                    "content": "I'm sorry to hear that. What's going on?",
+                },
             ],
         },
         headers=headers,

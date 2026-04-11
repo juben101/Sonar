@@ -142,9 +142,7 @@ def _build_playlist_reason(
             artist_str = ", ".join(artists)
         else:
             artist_str = ", ".join(artists[:3]) + f" and {len(artists) - 3} more"
-        parts.append(
-            f"We prioritized tracks from or similar to {artist_str}."
-        )
+        parts.append(f"We prioritized tracks from or similar to {artist_str}.")
 
     return " ".join(parts)
 

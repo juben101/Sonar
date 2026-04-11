@@ -228,7 +228,8 @@ async def get_mood_stats(
 
     this_week = [e for e in entries if e.created_at and e.created_at >= this_week_start]
     last_week = [
-        e for e in entries
+        e
+        for e in entries
         if e.created_at and last_week_start <= e.created_at < this_week_start
     ]
 
@@ -240,7 +241,8 @@ async def get_mood_stats(
         "this_week_analyses": len(this_week),
         "last_week_analyses": len(last_week),
         "confidence_delta": round(
-            avg_or_zero(this_week, "confidence") - avg_or_zero(last_week, "confidence"), 1
+            avg_or_zero(this_week, "confidence") - avg_or_zero(last_week, "confidence"),
+            1,
         ),
         "energy_delta": round(
             avg_or_zero(this_week, "energy") - avg_or_zero(last_week, "energy"), 1
@@ -263,12 +265,16 @@ async def get_mood_stats(
 
     calendar_data = []
     for day_key, info in sorted(cal_map.items()):
-        dominant = Counter(info["emotions"]).most_common(1)[0][0] if info["emotions"] else ""
-        calendar_data.append({
-            "date": day_key,
-            "count": info["count"],
-            "dominant_emotion": dominant,
-        })
+        dominant = (
+            Counter(info["emotions"]).most_common(1)[0][0] if info["emotions"] else ""
+        )
+        calendar_data.append(
+            {
+                "date": day_key,
+                "count": info["count"],
+                "dominant_emotion": dominant,
+            }
+        )
 
     return MoodStatsResponse(
         emotion_distribution=emotion_distribution,

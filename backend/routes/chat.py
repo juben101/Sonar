@@ -96,14 +96,20 @@ async def _build_user_context(user_id: str, db: AsyncSession) -> str:
     recent_entries_str = "\n".join(
         f"  - {e.created_at.strftime('%b %d') if e.created_at else '?'}: "
         f"{e.base_emotion} → {e.sub_emotion} (confidence: {e.confidence}%) "
-        f"| Input: \"{e.input_preview}\""
+        f'| Input: "{e.input_preview}"'
         for e in last_5
     )
 
     # Trend analysis
     if len(recent) >= 2:
         recent_valences = [e.valence for e in recent]
-        trend = "improving" if recent_valences[0] > recent_valences[-1] else "declining" if recent_valences[0] < recent_valences[-1] else "stable"
+        trend = (
+            "improving"
+            if recent_valences[0] > recent_valences[-1]
+            else "declining"
+            if recent_valences[0] < recent_valences[-1]
+            else "stable"
+        )
     else:
         trend = "insufficient data"
 
@@ -121,7 +127,7 @@ USER EMOTIONAL DATA (last 30 days):
 - Average energy: {avg_energy:.0f}/100
 - Average valence (happiness): {avg_valence:.0f}/100
 - Emotional trend: {trend}
-- Top music genres: {top_genres or 'none yet'}
+- Top music genres: {top_genres or "none yet"}
 
 RECENT ANALYSES:
 {recent_entries_str}

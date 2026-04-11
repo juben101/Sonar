@@ -126,9 +126,13 @@ def _extract_prosodic_features(data: dict) -> dict:
         prosodic["longest_pause_sec"] = round(max(pauses), 2)
 
         if len(pauses) > 3 and prosodic.get("avg_pause_sec", 0) > 1.0:
-            prosodic["pause_pattern"] = "frequent long pauses — hesitant, emotional, or deeply reflective"
+            prosodic["pause_pattern"] = (
+                "frequent long pauses — hesitant, emotional, or deeply reflective"
+            )
         elif len(pauses) > 2:
-            prosodic["pause_pattern"] = "noticeable pauses — thoughtful or weighing words carefully"
+            prosodic["pause_pattern"] = (
+                "noticeable pauses — thoughtful or weighing words carefully"
+            )
         else:
             prosodic["pause_pattern"] = "minimal pauses — fluid and confident delivery"
     else:
@@ -156,9 +160,13 @@ def _extract_prosodic_features(data: dict) -> dict:
         elif avg_conf > 0.85:
             prosodic["clarity_note"] = "clear speech"
         elif avg_conf > 0.7:
-            prosodic["clarity_note"] = "somewhat unclear, possibly emotional or mumbling"
+            prosodic["clarity_note"] = (
+                "somewhat unclear, possibly emotional or mumbling"
+            )
         else:
-            prosodic["clarity_note"] = "unclear speech, possibly crying, whispering, or very emotional"
+            prosodic["clarity_note"] = (
+                "unclear speech, possibly crying, whispering, or very emotional"
+            )
 
     return prosodic
 
