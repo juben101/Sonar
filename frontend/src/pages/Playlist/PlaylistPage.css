@@ -544,6 +544,31 @@
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* ══════════ PLAYLIST REASON ══════════ */
+.pl-reason-section {
+  padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  margin-bottom: 8px;
+}
+
+.pl-reason-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: rgba(255, 107, 138, 0.7);
+  margin-bottom: 10px;
+}
+
+.pl-reason-text {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: 'DM Sans', sans-serif;
+}
+
 /* ══════════ TRACK LIST ══════════ */
 .pl-tracklist {
   display: flex;

@@ -56,6 +56,7 @@ class MoodAnalyzeRequest(BaseModel):
     text: str = Field(..., min_length=10, max_length=2000)
     lat: float | None = None
     lon: float | None = None
+    prosodic: dict | None = None  # Prosodic features from voice input
 
 
 class MoodDimension(BaseModel):
@@ -91,6 +92,7 @@ class MoodAnalyzeResponse(BaseModel):
 
 class TranscribeResponse(BaseModel):
     text: str
+    prosodic: dict = {}
 
 
 # ── Playlist schemas ──
@@ -121,6 +123,7 @@ class TrackResponse(BaseModel):
 class PlaylistResponse(BaseModel):
     title: str
     tracks: list[TrackResponse]
+    playlist_reason: str = ""
 
 
 # ── Mood history schemas ──

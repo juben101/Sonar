@@ -143,8 +143,8 @@ export const authApi = {
 
 // Mood analysis API calls
 export const moodApi = {
-  analyze: (text, lat = null, lon = null) =>
-    api.post("/v1/mood/analyze", { text, lat, lon }),
+  analyze: (text, lat = null, lon = null, prosodic = null) =>
+    api.post("/v1/mood/analyze", { text, lat, lon, prosodic }),
 
   transcribe: (audioBlob) => {
     const formData = new FormData();

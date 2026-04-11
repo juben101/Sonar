@@ -19,6 +19,7 @@ export default function AnalyzePage() {
   const [_audioBlob, setAudioBlob] = useState(null);
   const [transcribedText, setTranscribedText] = useState("");
   const [transcribing, setTranscribing] = useState(false);
+  const [prosodicData, setProsodicData] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
 
   const timerRef = useRef(null);
@@ -148,6 +149,10 @@ export default function AnalyzePage() {
         const result = await moodApi.transcribe(blob);
         if (result.text && result.text.trim().length > 0) {
           setTranscribedText(result.text);
+          // Store prosodic features for emotion analysis
+          if (result.prosodic && Object.keys(result.prosodic).length > 0) {
+            setProsodicData(result.prosodic);
+          }
         } else {
           setTranscribedText("");
           alert("Could not detect any speech. Please try again and speak clearly.");
@@ -178,11 +183,12 @@ export default function AnalyzePage() {
     setAnalyzing(true);
     setProgress(0);
 
-    // Start the API call with optional location for weather
+    // Start the API call with optional location for weather + prosodic for voice
     const apiPromise = moodApi.analyze(
       analysisText,
       userLocation?.lat || null,
-      userLocation?.lon || null
+      userLocation?.lon || null,
+      mode === "voice" ? prosodicData : null
     );
 
     // Animate progress stages while API works

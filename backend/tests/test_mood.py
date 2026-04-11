@@ -96,6 +96,16 @@ MOCK_DEEPGRAM_RESPONSE = {
                     {
                         "transcript": "I am feeling really happy and excited today",
                         "confidence": 0.95,
+                        "words": [
+                            {"word": "I", "start": 0.1, "end": 0.2, "confidence": 0.99},
+                            {"word": "am", "start": 0.22, "end": 0.35, "confidence": 0.98},
+                            {"word": "feeling", "start": 0.4, "end": 0.75, "confidence": 0.97},
+                            {"word": "really", "start": 0.8, "end": 1.1, "confidence": 0.96},
+                            {"word": "happy", "start": 1.15, "end": 1.5, "confidence": 0.99},
+                            {"word": "and", "start": 1.55, "end": 1.65, "confidence": 0.98},
+                            {"word": "excited", "start": 1.7, "end": 2.1, "confidence": 0.97},
+                            {"word": "today", "start": 2.15, "end": 2.5, "confidence": 0.99},
+                        ],
                     }
                 ]
             }
@@ -213,6 +223,11 @@ async def test_transcribe_success(client):
     data = response.json()
     assert "text" in data
     assert "happy" in data["text"].lower()
+    # Prosodic features should be extracted from word-level timing
+    assert "prosodic" in data
+    if data["prosodic"]:
+        assert "speaking_rate_wpm" in data["prosodic"]
+        assert "pace" in data["prosodic"]
 
 
 @pytest.mark.asyncio

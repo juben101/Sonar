@@ -44,11 +44,11 @@ async def transcribe_audio(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TranscribeResponse:
-    """Transcribe uploaded audio to text via Deepgram/AssemblyAI."""
+    """Transcribe uploaded audio to text + prosodic features via Deepgram/AssemblyAI."""
     audio_bytes = await audio.read()
     content_type = audio.content_type or "audio/webm"
-    text = await transcribe(audio_bytes, content_type)
-    return TranscribeResponse(text=text)
+    result = await transcribe(audio_bytes, content_type)
+    return TranscribeResponse(text=result["text"], prosodic=result.get("prosodic", {}))
 
 
 @router.post("/analyze", response_model=MoodAnalyzeResponse)
@@ -65,7 +65,7 @@ async def analyze_text(
     if body.lat is not None and body.lon is not None:
         weather_context = await fetch_weather(body.lat, body.lon)
 
-    result = await analyze_mood(body.text, weather_context)
+    result = await analyze_mood(body.text, weather_context, body.prosodic)
 
     # ── Auto-save to mood history ──
     # Extract energy and valence from dimensions if available

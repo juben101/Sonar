@@ -2,7 +2,7 @@
 Mood Service — orchestrates transcription, weather, LLM analysis, and YouTube Music.
 
 This is the high-level service called by routes. It delegates to:
-  - transcription_service.transcribe_audio() for speech → text
+  - transcription_service.transcribe_audio() for speech → text + prosodic features
   - weather_service.get_weather() for location → weather context
   - llm_service.analyze_emotion() for text → emotion
   - ytmusic_service.get_recommendations() for emotion → playlist
@@ -18,8 +18,8 @@ from services.weather_service import get_weather
 logger = logging.getLogger("sonar.mood")
 
 
-async def transcribe(audio_bytes: bytes, content_type: str = "audio/webm") -> str:
-    """Transcribe audio to text."""
+async def transcribe(audio_bytes: bytes, content_type: str = "audio/webm") -> dict:
+    """Transcribe audio to text + prosodic features."""
     return await transcribe_audio(audio_bytes, content_type)
 
 
@@ -28,9 +28,13 @@ async def fetch_weather(lat: float, lon: float) -> dict | None:
     return await get_weather(lat, lon)
 
 
-async def analyze_mood(text: str, weather_context: dict | None = None) -> dict:
+async def analyze_mood(
+    text: str,
+    weather_context: dict | None = None,
+    prosodic_context: dict | None = None,
+) -> dict:
     """Analyze text and return structured emotion analysis."""
-    result = await analyze_emotion(text, weather_context)
+    result = await analyze_emotion(text, weather_context, prosodic_context)
 
     # Attach weather info to response if available
     if weather_context:
@@ -70,7 +74,79 @@ async def generate_playlist(
     # Determine playlist name from emotion + genre
     title = f"{base_emotion} · {genre.title()}"
 
-    return {"title": title, "tracks": tracks}
+    # Generate playlist summary explaining why these songs were chosen
+    playlist_reason = _build_playlist_reason(
+        genre=genre,
+        base_emotion=base_emotion,
+        preference=preference,
+        languages=languages,
+        artists=artists,
+        intensity=intensity,
+        track_count=len(tracks),
+    )
+
+    return {"title": title, "tracks": tracks, "playlist_reason": playlist_reason}
+
+
+def _build_playlist_reason(
+    genre: str,
+    base_emotion: str,
+    preference: str,
+    languages: list[str] | None,
+    artists: list[str] | None,
+    intensity: int,
+    track_count: int,
+) -> str:
+    """Build a human-readable explanation of why this playlist was curated."""
+    parts = []
+
+    # Emotion + preference context
+    if preference == "match":
+        parts.append(
+            f"This playlist of {track_count} tracks was curated to match your "
+            f"{base_emotion.lower()} emotional state"
+        )
+    else:
+        parts.append(
+            f"This playlist of {track_count} tracks was curated to gently uplift "
+            f"your mood from {base_emotion.lower()}"
+        )
+
+    # Genre
+    parts[0] += f" through {genre} music."
+
+    # Intensity
+    if intensity < 33:
+        parts.append(
+            "We kept the intensity soft — gentle melodies and quieter arrangements "
+            "that won't overwhelm."
+        )
+    elif intensity > 66:
+        parts.append(
+            "We dialed up the intensity — expect powerful vocals, driving rhythms, "
+            "and energetic arrangements."
+        )
+
+    # Languages
+    if languages and len(languages) > 1:
+        lang_str = ", ".join(languages[:-1]) + f" and {languages[-1]}"
+        parts.append(
+            f"Songs are distributed across {lang_str} for a diverse listening experience."
+        )
+    elif languages and languages[0] != "English":
+        parts.append(f"Focused on {languages[0]} music to match your preference.")
+
+    # Artists
+    if artists and len(artists) > 0:
+        if len(artists) <= 3:
+            artist_str = ", ".join(artists)
+        else:
+            artist_str = ", ".join(artists[:3]) + f" and {len(artists) - 3} more"
+        parts.append(
+            f"We prioritized tracks from or similar to {artist_str}."
+        )
+
+    return " ".join(parts)
 
 
 async def stream_audio(video_id: str) -> str:

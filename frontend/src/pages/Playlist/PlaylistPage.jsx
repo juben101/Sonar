@@ -401,6 +401,14 @@ export default function PlaylistPage() {
             </div>
           </div>
 
+          {/* ── Why This Playlist ── */}
+          {playlist.playlist_reason && (
+            <section className="pl-reason-section">
+              <div className="pl-reason-badge">✦ WHY THIS PLAYLIST</div>
+              <p className="pl-reason-text">{playlist.playlist_reason}</p>
+            </section>
+          )}
+
           {/* ── Track List ── */}
           <section className="pl-tracklist">
             {playlist.tracks.length > 0 ? (
