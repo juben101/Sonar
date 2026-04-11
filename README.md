@@ -47,7 +47,8 @@ Unlike traditional systems that treat emotions as deterministic labels with stat
 └───────────┬──────────────────┬───────────────────────────────────────┘
             │                  │
     ┌───────▼──────┐   ┌──────▼───────┐
-    │ Text Pipeline│   │Speech Pipeline│
+    │ Text Pipeline│   │Speech        │
+    │              │   │     Pipeline │
     │  (EmoBertX)  │   │   (WavLM)    │
     │              │   │              │
     │ • Coarse     │   │ • Prosodic   │
@@ -59,25 +60,25 @@ Unlike traditional systems that treat emotions as deterministic labels with stat
     └───────┬──────┘   └──────┬───────┘
             │                  │
     ┌───────▼──────────────────▼───────┐
-    │   ⚖️  Confidence-Aware Fusion    │
-    │                                   │
-    │  • Trust-weighted combination     │
-    │  • Conflict resolution            │
-    │  • Uncertainty thresholding       │
+    │   ⚖️  Confidence-Aware Fusion    |
+    │                                  │
+    │  • Trust-weighted combination    │
+    │  • Conflict resolution           │
+    │  • Uncertainty thresholding      │
     └──────────────┬───────────────────┘
                    │
     ┌──────────────▼───────────────────┐
     │   👤  Emotional User Profile     │
-    │                                   │
-    │  {emotion, fine_emotion,          │
-    │   sentiment, confidence,          │
-    │   modality, threshold_flag}       │
+    │                                  │
+    │  {emotion, fine_emotion,         │
+    │   sentiment, confidence,         │
+    │   modality, threshold_flag}      │
     └──────────────┬───────────────────┘
                    │
     ┌──────────────▼───────────────────┐
     │  🎼  Hybrid Recommendation       │
-    │       Engine                      │
-    │                                   │
+    │       Engine                     │
+    │                                  │
     │  Rule-Based + Content-Based      │
     │  + Collaborative Filtering       │
     │  + Weather Context               │
@@ -86,7 +87,7 @@ Unlike traditional systems that treat emotions as deterministic labels with stat
     ┌──────────────▼───────────────────┐
     │  🤖  RLHF Personalization        │
     │       (LinUCB Bandits)           │
-    │                                   │
+    │                                  │
     │  Explore ↔ Exploit               │
     │  Reward: skip/listen/like/save   │
     └──────────────┬───────────────────┘
@@ -225,45 +226,6 @@ Sonar/
 │
 └── README.md
 ```
-
----
-
-## 🔑 API Endpoints
-
-### Authentication
-
-| Method | Endpoint | Auth | Rate Limit | Description |
-|--------|----------|------|-----------|-------------|
-| `POST` | `/auth/signup` | — | 5/min | Create account |
-| `POST` | `/auth/login` | — | 5/min | Login with credentials |
-| `POST` | `/auth/refresh` | — | 10/min | Refresh access token |
-| `POST` | `/auth/logout` | 🔒 | — | Revoke refresh token |
-| `GET` | `/auth/me` | 🔒 | — | Get current user profile |
-
-### Mood Analysis & Playlists
-
-| Method | Endpoint | Auth | Rate Limit | Description |
-|--------|----------|------|-----------|-------------|
-| `POST` | `/v1/mood/analyze` | 🔒 | 10/min | Analyze text → emotion + genre (with weather context) |
-| `POST` | `/v1/mood/transcribe` | 🔒 | 10/min | Transcribe audio + extract prosodic features |
-| `POST` | `/v1/mood/playlist` | 🔒 | 15/min | Generate playlist from genre + preferences |
-| `GET` | `/v1/mood/history` | 🔒 | 30/min | Retrieve mood analysis history |
-| `GET` | `/v1/mood/stats` | 🔒 | 30/min | Aggregated mood stats, streaks, trends |
-| `GET` | `/v1/mood/stream/{id}` | 🔒 | 30/min | On-demand audio stream URL extraction |
-
-### Song Preferences (RLHF)
-
-| Method | Endpoint | Auth | Rate Limit | Description |
-|--------|----------|------|-----------|-------------|
-| `PUT` | `/v1/mood/songs/preference` | 🔒 | 60/min | Like or dislike a song |
-| `DELETE` | `/v1/mood/songs/preference/{key}` | 🔒 | 60/min | Remove a preference |
-| `POST` | `/v1/mood/songs/preferences` | 🔒 | 30/min | Batch retrieve preferences |
-
-### AI Companion
-
-| Method | Endpoint | Auth | Rate Limit | Description |
-|--------|----------|------|-----------|-------------|
-| `POST` | `/v1/chat/message` | 🔒 | 30/min | Chat with AI companion (RAG over mood history) |
 
 ---
 
@@ -430,36 +392,6 @@ SONAR classifies emotions in a hierarchical structure:
 [![Patent](https://img.shields.io/badge/📋_Patent_Filing-View_Application-e11d48?style=for-the-badge)](#)
 
 </div>
-
----
-
-## 🗺 Roadmap
-
-- [x] Full-stack project scaffolding + premium dark glassmorphic UI
-- [x] JWT authentication (access + refresh tokens)
-- [x] AI emotion analysis (5 base × 28 sub-emotions)
-- [x] Voice input with live waveform + auto-transcription
-- [x] Prosodic voice analysis (pace, pauses, speaking rate, clarity)
-- [x] Weather-influenced genre recommendations
-- [x] YouTube Music integration with on-demand audio streaming
-- [x] Vinyl record player with playback controls
-- [x] Playlist saving + dashboard management
-- [x] "Why this playlist?" AI reasoning
-- [x] Mood history dashboard (charts, heatmap, radar, streaks)
-- [x] AI wellness companion chatbot (RAG + psychotherapy)
-- [x] Social sharing (mood analysis + playlists)
-- [x] First-time user onboarding flow
-- [x] RLHF preference tracking (like/dislike)
-- [x] Code splitting + performance optimization
-- [x] Accessibility (focus-visible, aria-labels, WCAG contrast)
-- [x] 68 automated tests (39 backend + 29 frontend)
-- [x] Ambient effects (snowfall, starfield, glassmorphism)
-- [ ] RLHF bandit integration into recommendation loop
-- [ ] PWA / offline support
-- [ ] Docker deployment
-- [ ] E2E tests (Playwright)
-
----
 
 ## 📄 License
 
