@@ -1,15 +1,40 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Snowfall from "react-snowfall";
 import LandingPage from "../pages/Landing/LandingPage";
 import AuthPage from "../pages/Auth/AuthPage";
-import DashboardPage from "../pages/Dashboard/DashboardPage";
-import AnalyzePage from "../pages/Analyze/AnalyzePage";
-import ResultPage from "../pages/Result/ResultPage";
-import PlaylistPage from "../pages/Playlist/PlaylistPage";
-import HistoryPage from "../pages/History/HistoryPage";
-import NotFoundPage from "../pages/NotFound/NotFoundPage";
 import ProtectedRoute from "../components/ProtectedRoute";
+import NotFoundPage from "../pages/NotFound/NotFoundPage";
+
+// ── Code-split heavy pages (lazy load) ──
+const DashboardPage = lazy(() => import("../pages/Dashboard/DashboardPage"));
+const AnalyzePage = lazy(() => import("../pages/Analyze/AnalyzePage"));
+const ResultPage = lazy(() => import("../pages/Result/ResultPage"));
+const PlaylistPage = lazy(() => import("../pages/Playlist/PlaylistPage"));
+const HistoryPage = lazy(() => import("../pages/History/HistoryPage"));
+
+// ── Suspense fallback (minimal loading state) ──
+function PageLoader() {
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "#080808",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    }}>
+      <div style={{
+        width: 32,
+        height: 32,
+        border: "2px solid rgba(255,255,255,0.06)",
+        borderTopColor: "#ff6b8a",
+        borderRadius: "50%",
+        animation: "spin 0.8s linear infinite",
+      }} />
+    </div>
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,16 +64,18 @@ export default function App() {
             pointerEvents: "none",
           }}
         />
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/auth" element={<AuthPage />} />
-          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-          <Route path="/analyze" element={<ProtectedRoute><AnalyzePage /></ProtectedRoute>} />
-          <Route path="/result" element={<ProtectedRoute><ResultPage /></ProtectedRoute>} />
-          <Route path="/playlist" element={<ProtectedRoute><PlaylistPage /></ProtectedRoute>} />
-          <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/auth" element={<AuthPage />} />
+            <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+            <Route path="/analyze" element={<ProtectedRoute><AnalyzePage /></ProtectedRoute>} />
+            <Route path="/result" element={<ProtectedRoute><ResultPage /></ProtectedRoute>} />
+            <Route path="/playlist" element={<ProtectedRoute><PlaylistPage /></ProtectedRoute>} />
+            <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </QueryClientProvider>
   );

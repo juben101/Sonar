@@ -222,17 +222,48 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <div className="db-empty-state">
-              <div className="db-empty-icon">🎵</div>
-              <h3 className="db-empty-title">No playlists yet</h3>
-              <p className="db-empty-text">
-                Generate your first mood-based playlist and save it here.
-              </p>
+            <div className="db-onboarding">
+              <div className="db-onboard-header">
+                <span className="db-onboard-wave">👋</span>
+                <h3 className="db-onboard-title">Welcome to Sonar</h3>
+                <p className="db-onboard-subtitle">
+                  Your AI-powered emotion-aware music companion. Here's how it works:
+                </p>
+              </div>
+
+              <div className="db-onboard-steps">
+                <div className="db-onboard-step">
+                  <div className="db-onboard-step-num">1</div>
+                  <div className="db-onboard-step-icon">🎤</div>
+                  <h4 className="db-onboard-step-title">Speak or Type</h4>
+                  <p className="db-onboard-step-desc">
+                    Share how you're feeling through text or voice — we analyze both words and vocal tone.
+                  </p>
+                </div>
+                <div className="db-onboard-step">
+                  <div className="db-onboard-step-num">2</div>
+                  <div className="db-onboard-step-icon">🧠</div>
+                  <h4 className="db-onboard-step-title">AI Analyzes</h4>
+                  <p className="db-onboard-step-desc">
+                    Our AI detects your emotion, sub-emotion, and recommends a genre based on weather + mood.
+                  </p>
+                </div>
+                <div className="db-onboard-step">
+                  <div className="db-onboard-step-num">3</div>
+                  <div className="db-onboard-step-icon">🎧</div>
+                  <h4 className="db-onboard-step-title">Listen & Discover</h4>
+                  <p className="db-onboard-step-desc">
+                    Get a curated playlist on our vinyl player. Like songs to teach Sonar your taste.
+                  </p>
+                </div>
+              </div>
+
               <button
-                className="db-empty-cta"
+                className="db-onboard-cta"
                 onClick={() => navigate("/analyze")}
               >
-                ✦ Generate Your First Playlist
+                <span className="db-onboard-cta-icon">✦</span>
+                Start Your First Analysis
               </button>
             </div>
           )}

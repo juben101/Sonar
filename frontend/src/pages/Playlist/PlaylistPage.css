@@ -569,6 +569,67 @@
   font-family: 'DM Sans', sans-serif;
 }
 
+/* ══════════ ACTIONS ROW ══════════ */
+.pl-actions-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 4px 0;
+}
+
+.pl-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.76rem;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pl-action-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.pl-saved-badge {
+  padding: 9px 18px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #34d399;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.pl-share-toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 28px;
+  border-radius: 12px;
+  background: rgba(12, 12, 18, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: 'DM Sans', sans-serif;
+  backdrop-filter: blur(12px);
+  z-index: 1000;
+  animation: plToastIn 0.3s ease both;
+}
+
+@keyframes plToastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
 /* ══════════ TRACK LIST ══════════ */
 .pl-tracklist {
   display: flex;

@@ -11,6 +11,7 @@ export default function PlaylistPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const data = location.state;
+  const [shareToast, setShareToast] = useState("");
   const [playingId, setPlayingId] = useState(null);
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
@@ -22,6 +23,7 @@ export default function PlaylistPage() {
   const [isLoadingStream, setIsLoadingStream] = useState(false);
   const audioRef = useRef(null);
   const progressTimer = useRef(null);
+  const retryCountRef = useRef({}); // Track stream URL retries per video_id
   const { savePlaylist, isPlaylistSaved } = usePlaylistStore();
 
   useEffect(() => {
@@ -102,7 +104,21 @@ export default function PlaylistPage() {
         setIsLoadingStream(false);
       };
 
-      audio.onerror = () => {
+      audio.onerror = async () => {
+        // Retry once — stream URL may have expired (403)
+        if (!retryCountRef.current[track.video_id]) {
+          retryCountRef.current[track.video_id] = true;
+          console.log(`Stream expired for ${track.video_id}, re-fetching...`);
+          try {
+            const retry = await moodApi.getStream(track.video_id);
+            if (retry.audio_url) {
+              audio.src = retry.audio_url;
+              audio.load();
+              audio.play().catch(() => {});
+              return;
+            }
+          } catch { /* fall through to stop */ }
+        }
         setIsLoadingStream(false);
         stopCurrent();
       };
@@ -207,6 +223,31 @@ export default function PlaylistPage() {
     ? playlist.tracks.find((t) => t.id === playingId)
     : null;
 
+
+  // ── Share playlist ──
+  const sharePlaylist = async () => {
+    const trackList = playlist.tracks
+      .slice(0, 8)
+      .map((t, i) => `${i + 1}. ${t.title} — ${t.artist}`)
+      .join("\n");
+    const moreText = playlist.tracks.length > 8 ? `\n...and ${playlist.tracks.length - 8} more` : "";
+    const text = `🎵 ${playlist.title}\n${analysis?.moodEmoji || "🎵"} Mood: ${analysis?.sub_emotion || analysis?.base_emotion || "Vibes"}\n🎶 Genre: ${analysis?.genre || "Mixed"}\n\n${trackList}${moreText}\n\n— Curated by Sonar`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: playlist.title, text });
+        return;
+      } catch { /* user cancelled */ }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setShareToast("Copied to clipboard!");
+      setTimeout(() => setShareToast(""), 2000);
+    } catch {
+      setShareToast("Could not share");
+      setTimeout(() => setShareToast(""), 2000);
+    }
+  };
 
   return (
     <PageLayout>
@@ -400,6 +441,33 @@ export default function PlaylistPage() {
               </span>
             </div>
           </div>
+
+          {/* ── Actions ── */}
+          <div className="pl-actions-row">
+            <button className="pl-action-btn" onClick={sharePlaylist}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              Share Playlist
+            </button>
+            {!saved && (
+              <button className="pl-action-btn" onClick={() => {
+                savePlaylist(playlist, analysis, preference, settings);
+                setSaved(true);
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                  <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+                </svg>
+                Save to Library
+              </button>
+            )}
+            {saved && (
+              <span className="pl-saved-badge">✓ Saved</span>
+            )}
+          </div>
+          {shareToast && <div className="pl-share-toast">{shareToast}</div>}
 
           {/* ── Why This Playlist ── */}
           {playlist.playlist_reason && (
