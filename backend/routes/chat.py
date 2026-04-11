@@ -23,7 +23,6 @@ from schemas import ChatRequest, ChatResponse
 from services.llm_service import _PROVIDERS
 
 import httpx
-import json
 
 from config import get_settings
 

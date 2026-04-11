@@ -103,7 +103,6 @@ function EmotionRadar({ dimensions = [] }) {
   });
 
   const dataPoints = vals.map((v, i) => getPoint(angles[i], v * maxR));
-  const dataPath = dataPoints.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ") + "Z";
 
   return (
     <svg viewBox={`0 0 ${size} ${size}`} className="mh-radar-svg" role="img" aria-label="Emotion radar chart showing distribution of Sadness, Joy, Anger, Fear, Calm, and Energy">

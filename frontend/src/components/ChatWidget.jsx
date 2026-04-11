@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { chatApi } from "../services/api";
 import useAuthStore from "../stores/useAuthStore";
 import "./ChatWidget.css";
@@ -19,16 +19,9 @@ export default function ChatWidget() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Don't render if not authenticated
-  if (!token) return null;
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
   // Scroll on new messages
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   // Focus input when opened
@@ -49,9 +42,8 @@ export default function ChatWidget() {
     setLoading(true);
 
     try {
-      // Build history (exclude initial greeting from history sent to API)
       const history = messages
-        .slice(1) // skip greeting
+        .slice(1)
         .map((m) => ({ role: m.role, content: m.content }));
 
       const res = await chatApi.sendMessage(text, history);
@@ -59,7 +51,7 @@ export default function ChatWidget() {
       setMessages((prev) => [...prev, assistantMsg]);
 
       if (!isOpen) setHasUnread(true);
-    } catch (err) {
+    } catch {
       const errMsg = {
         role: "assistant",
         content:
@@ -81,6 +73,9 @@ export default function ChatWidget() {
   const clearChat = () => {
     setMessages([INITIAL_MESSAGE]);
   };
+
+  // Don't render if not authenticated (after all hooks)
+  if (!token) return null;
 
   return (
     <>
