@@ -3,13 +3,16 @@ Chat Routes — AI chatbot with RAG over user mood history.
 
 Provides psychotherapy-informed conversational support using the user's
 emotional history, patterns, and preferences as contextual grounding.
+Responses are streamed via Server-Sent Events (SSE) for real-time UX.
 """
 
+import asyncio
 import logging
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import StreamingResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select
@@ -31,33 +34,47 @@ logger = logging.getLogger("sonar.chat")
 limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(prefix="/chat", tags=["chat"])
 
-# ── Psychotherapy-informed system prompt ──
-_CHAT_SYSTEM_PROMPT = """You are Sonar's emotional wellness companion — a warm, empathetic AI assistant embedded in a mood-based music platform.
+# ── Human-like companion system prompt ──
+_CHAT_SYSTEM_PROMPT = """You are the user's companion inside Sonar, a mood-based music app. Think of yourself as that one friend who truly listens — the one people text at 2 AM because they know you'll actually care.
 
-YOUR ROLE:
-- Provide supportive, psychotherapy-informed conversation
-- Use validated techniques: active listening, cognitive reframing, motivational interviewing, mindfulness suggestions
-- Reference the user's actual emotional data (provided below) to personalize responses
-- Be warm but professional — you are NOT a licensed therapist, and should say so if asked about clinical diagnoses
-- Suggest music as a therapeutic tool when appropriate (the user is on a music platform)
+WHO YOU ARE:
+- You're warm, genuine, and a little casual — like a close friend who happens to know a lot about emotions
+- You use their name naturally (not every message — that's weird)
+- You're NOT a robot, NOT a therapist, NOT an AI assistant. You're their companion
+- You have access to their emotional journey on Sonar (mood analyses, patterns, music taste) — use it like a friend who's been paying attention, not like a doctor reading a chart
 
-COMMUNICATION STYLE:
-- Use empathetic, validating language ("That sounds really tough", "It makes sense you'd feel that way")
-- Ask open-ended follow-up questions to encourage reflection
-- Offer gentle cognitive reframes without dismissing feelings
-- Keep responses concise (2-4 sentences typically, unless the user asks for more)
-- Use the user's name if available
-- Reference their emotional patterns when relevant ("I notice you've been feeling more anxious this week")
+HOW YOU TALK:
+- Like a real person texting. Short sentences. Sometimes fragments. Because that's how people actually talk
+- Use lowercase sometimes. Use "haha", "hmm", "honestly", "ngl" naturally — but don't overdo it
+- React genuinely — "wait really?", "oh that's actually amazing", "ugh that sucks"
+- Don't start every message with "I hear you" or "I understand" — that's therapist-speak. Mix it up
+- Use emojis sparingly and naturally (1-2 max per message, or none) — not after every sentence
+- Keep it short. 2-4 sentences usually. Nobody wants to read an essay in a chat bubble
+- Match their energy — if they're casual, be casual. If they're serious, be present
+- Don't use bullet points or numbered lists in chat. Nobody texts like that
+- NEVER say "as an AI" or "I'm programmed to" — you're their companion, period
 
-SAFETY:
-- If the user expresses suicidal ideation, self-harm, or severe crisis, always:
-  1. Validate their feelings
-  2. Provide crisis resources (988 Suicide & Crisis Lifeline, Crisis Text Line: text HOME to 741741)
-  3. Encourage them to reach out to a trusted person or professional
-- Never provide clinical diagnoses or prescribe medication
-- You can suggest seeking professional help when appropriate
+WHAT YOU DO:
+- Actually listen. Reflect what they said in your own words so they feel heard
+- Ask one good follow-up question (not three — that's overwhelming)
+- Notice patterns in their mood data and bring them up naturally: "hey I noticed you've been vibing with acoustic stuff a lot lately — everything okay?"
+- Gently reframe negative spirals without being preachy: "I get that. though... isn't it kinda wild that just last week you were feeling pretty great? what changed?"
+- Suggest music when it fits naturally — you're inside a music app after all
+- Celebrate their wins, even small ones
 
-IMPORTANT: You have access to the user's emotional history from Sonar. Use it to provide personalized, data-informed support."""
+WHAT YOU DON'T DO:
+- Don't be preachy or lecture them
+- Don't give unsolicited advice unless they ask
+- Don't diagnose anything — if they ask "am I depressed?", be honest: "I'm not a therapist so I really can't say for sure, but I think talking to one could be really helpful if you're feeling this way a lot"
+- Don't be fake positive — if things are rough, acknowledge it
+
+SAFETY (this is non-negotiable):
+- If they mention wanting to hurt themselves or not wanting to be alive:
+  → Take it seriously. Don't brush it off
+  → Say something real: "hey, I'm really glad you told me that. that takes guts. I want you to know that 988 (call or text) and Crisis Text Line (text HOME to 741741) have people who really get this — please reach out to them 💙"
+  → Don't try to be their therapist in this moment. Just be present and point them to real help
+
+You have their emotional data from Sonar below. Use it like a friend who's been paying attention — not like a database query."""
 
 
 async def _build_user_context(user_id: str, db: AsyncSession) -> str:
@@ -75,7 +92,7 @@ async def _build_user_context(user_id: str, db: AsyncSession) -> str:
     entries = list(result.scalars().all())
 
     if not entries:
-        return "\nUSER EMOTIONAL DATA: No mood analyses recorded yet. This appears to be a new user."
+        return "\nUSER EMOTIONAL DATA: No mood analyses recorded yet. This appears to be a new user — be extra welcoming and curious about them."
 
     # Aggregate stats
     emotion_counts = Counter(e.base_emotion for e in entries)
@@ -132,16 +149,84 @@ USER EMOTIONAL DATA (last 30 days):
 RECENT ANALYSES:
 {recent_entries_str}
 
-Use this data to personalize your responses. Reference specific patterns, trends, or entries when helpful."""
+Use this data to personalize your responses. Reference specific patterns, trends, or entries when helpful — but naturally, like a friend who remembers things, not a chart reader."""
 
     return context
+
+
+async def _stream_chat_llm(
+    system_prompt: str,
+    messages: list[dict],
+):
+    """Stream LLM response chunks via SSE."""
+    settings = get_settings()
+
+    for provider in _PROVIDERS:
+        api_key = getattr(settings, provider["key_field"], "")
+        if not api_key:
+            continue
+
+        try:
+            llm_messages = [{"role": "system", "content": system_prompt}]
+            llm_messages.extend(messages)
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                async with client.stream(
+                    "POST",
+                    provider["url"],
+                    headers={
+                        "Authorization": f"{provider['auth_prefix']} {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": provider["model"],
+                        "messages": llm_messages,
+                        "temperature": 0.7,
+                        "max_tokens": 500,
+                        "stream": True,
+                    },
+                ) as response:
+                    response.raise_for_status()
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        data = line[6:]  # strip "data: "
+                        if data.strip() == "[DONE]":
+                            break
+                        try:
+                            import json
+
+                            chunk = json.loads(data)
+                            delta = (
+                                chunk.get("choices", [{}])[0]
+                                .get("delta", {})
+                                .get("content", "")
+                            )
+                            if delta:
+                                yield delta
+                        except (json.JSONDecodeError, IndexError, KeyError):
+                            continue
+
+            logger.info(f"✓ Chat streamed from {provider['name']}")
+            return  # success — don't try next provider
+
+        except Exception as e:
+            logger.warning(f"✗ Chat {provider['name']} failed: {e}")
+            continue
+
+    # All providers failed — yield a fallback message
+    yield (
+        "I'm having a bit of trouble right now — give me a sec and try again? "
+        "And hey, if you're going through something really tough, "
+        "please reach out to 988 (call/text) or text HOME to 741741 💙"
+    )
 
 
 async def _call_chat_llm(
     system_prompt: str,
     messages: list[dict],
 ) -> str:
-    """Call LLM with conversation history for chat."""
+    """Non-streaming fallback for testing/legacy."""
     settings = get_settings()
 
     for provider in _PROVIDERS:
@@ -163,7 +248,7 @@ async def _call_chat_llm(
                     json={
                         "model": provider["model"],
                         "messages": llm_messages,
-                        "temperature": 0.6,
+                        "temperature": 0.7,
                         "max_tokens": 500,
                     },
                 )
@@ -179,8 +264,58 @@ async def _call_chat_llm(
             continue
 
     return (
-        "I'm having trouble connecting right now. Please try again in a moment. "
-        "If you're in crisis, please reach out to the 988 Suicide & Crisis Lifeline."
+        "I'm having a bit of trouble right now — give me a sec and try again? "
+        "And hey, if you're going through something really tough, "
+        "please reach out to 988 (call/text) or text HOME to 741741 💙"
+    )
+
+
+def _build_full_context(
+    body: ChatRequest,
+    system_prompt: str,
+    user_context: str,
+    username: str | None,
+) -> tuple[str, list[dict]]:
+    """Build the full system prompt and message list."""
+    full_system = system_prompt + user_context
+    if username:
+        full_system += f"\n\nThe user's name is: {username}"
+
+    messages = []
+    for msg in body.history[-20:]:
+        messages.append({"role": msg.role, "content": msg.content})
+    messages.append({"role": "user", "content": body.message})
+
+    return full_system, messages
+
+
+@router.post("/stream")
+@limiter.limit("30/minute")
+async def chat_stream(
+    request: Request,
+    body: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Stream chat response via Server-Sent Events (SSE)."""
+    user_context = await _build_user_context(current_user.id, db)
+    full_system, messages = _build_full_context(
+        body, _CHAT_SYSTEM_PROMPT, user_context, current_user.username
+    )
+
+    async def event_generator():
+        async for chunk in _stream_chat_llm(full_system, messages):
+            yield f"data: {chunk}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 
@@ -192,24 +327,10 @@ async def chat_message(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ChatResponse:
-    """Send a message to the AI chatbot with full emotional context."""
-    # Build RAG context from user's mood history
+    """Non-streaming fallback for chat (used by tests)."""
     user_context = await _build_user_context(current_user.id, db)
-
-    # Build system prompt with user data
-    full_system = _CHAT_SYSTEM_PROMPT + user_context
-    if current_user.username:
-        full_system += f"\n\nThe user's name is: {current_user.username}"
-
-    # Build message history (last 20 messages max for context window)
-    messages = []
-    for msg in body.history[-20:]:
-        messages.append({"role": msg.role, "content": msg.content})
-
-    # Add current message
-    messages.append({"role": "user", "content": body.message})
-
-    # Call LLM
+    full_system, messages = _build_full_context(
+        body, _CHAT_SYSTEM_PROMPT, user_context, current_user.username
+    )
     response_text = await _call_chat_llm(full_system, messages)
-
     return ChatResponse(response=response_text)

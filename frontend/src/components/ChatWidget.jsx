@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect } from "react";
-import { chatApi } from "../services/api";
 import useAuthStore from "../stores/useAuthStore";
 import "./ChatWidget.css";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const INITIAL_MESSAGE = {
   role: "assistant",
   content:
-    "Hey there 👋 I'm your Sonar companion. I can see your emotional journey and I'm here to chat, reflect, or just listen. How are you feeling right now?",
+    "hey 👋 i'm your sonar companion — i can see your emotional journey here and i'm around whenever you wanna chat, vent, or just think out loud. how are you doing?",
 };
 
 export default function ChatWidget() {
@@ -18,6 +19,7 @@ export default function ChatWidget() {
   const [hasUnread, setHasUnread] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const abortRef = useRef(null);
 
   // Scroll on new messages
   useEffect(() => {
@@ -41,25 +43,101 @@ export default function ChatWidget() {
     setInput("");
     setLoading(true);
 
-    try {
-      const history = messages
-        .slice(1)
-        .map((m) => ({ role: m.role, content: m.content }));
+    // Build history (skip initial greeting)
+    const history = messages
+      .slice(1)
+      .map((m) => ({ role: m.role, content: m.content }));
 
-      const res = await chatApi.sendMessage(text, history);
-      const assistantMsg = { role: "assistant", content: res.response };
-      setMessages((prev) => [...prev, assistantMsg]);
+    // Add a placeholder bot message that we'll stream into
+    const botIndex = messages.length + 1; // after user msg is added
+    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+
+    try {
+      // Try SSE streaming first
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const res = await fetch(`${API_URL}/v1/chat/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ message: text, history }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n");
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = line.slice(6);
+          if (data.trim() === "[DONE]") continue;
+
+          accumulated += data;
+          // Update the last bot message with streamed content
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              role: "assistant",
+              content: accumulated,
+            };
+            return updated;
+          });
+        }
+      }
 
       if (!isOpen) setHasUnread(true);
     } catch {
-      const errMsg = {
-        role: "assistant",
-        content:
-          "I'm having trouble connecting right now. If you're in a crisis, please call 988 or text HOME to 741741. 💙",
-      };
-      setMessages((prev) => [...prev, errMsg]);
+      // Fallback: try non-streaming endpoint
+      try {
+        const fallbackRes = await fetch(`${API_URL}/v1/chat/message`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ message: text, history }),
+        });
+
+        if (fallbackRes.ok) {
+          const data = await fallbackRes.json();
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              role: "assistant",
+              content: data.response,
+            };
+            return updated;
+          });
+        } else {
+          throw new Error("fallback failed");
+        }
+      } catch {
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            role: "assistant",
+            content:
+              "hmm i'm having trouble connecting right now — try again in a sec? and if you're going through something really tough, please reach out to 988 or text HOME to 741741 💙",
+          };
+          return updated;
+        });
+      }
     } finally {
       setLoading(false);
+      abortRef.current = null;
     }
   };
 
@@ -71,7 +149,9 @@ export default function ChatWidget() {
   };
 
   const clearChat = () => {
+    if (abortRef.current) abortRef.current.abort();
     setMessages([INITIAL_MESSAGE]);
+    setLoading(false);
   };
 
   // Don't render if not authenticated (after all hooks)
@@ -110,7 +190,7 @@ export default function ChatWidget() {
               </div>
               <div className="chat-header-info">
                 <span className="chat-header-name">Sonar Companion</span>
-                <span className="chat-header-subtitle">AI Wellness Assistant</span>
+                <span className="chat-header-subtitle">always here for you</span>
               </div>
             </div>
             <div className="chat-header-actions">
@@ -143,7 +223,7 @@ export default function ChatWidget() {
                 </div>
               </div>
             ))}
-            {loading && (
+            {loading && messages[messages.length - 1]?.content === "" && (
               <div className="chat-msg chat-msg--bot">
                 <div className="chat-msg-avatar">🧠</div>
                 <div className="chat-msg-bubble chat-msg-bubble--typing">
@@ -161,7 +241,7 @@ export default function ChatWidget() {
             <textarea
               ref={inputRef}
               className="chat-input"
-              placeholder="Share how you're feeling..."
+              placeholder="what's on your mind?"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
@@ -183,7 +263,7 @@ export default function ChatWidget() {
 
           {/* Disclaimer */}
           <div className="chat-disclaimer">
-            Not a substitute for professional mental health care.
+            not a substitute for professional mental health care
           </div>
         </div>
       )}
