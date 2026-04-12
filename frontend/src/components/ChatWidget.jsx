@@ -49,7 +49,6 @@ export default function ChatWidget() {
       .map((m) => ({ role: m.role, content: m.content }));
 
     // Add a placeholder bot message that we'll stream into
-    const botIndex = messages.length + 1; // after user msg is added
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
     try {

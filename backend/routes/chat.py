@@ -6,7 +6,6 @@ emotional history, patterns, and preferences as contextual grounding.
 Responses are streamed via Server-Sent Events (SSE) for real-time UX.
 """
 
-import asyncio
 import logging
 from collections import Counter
 from datetime import datetime, timedelta, timezone
