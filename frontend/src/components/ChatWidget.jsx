@@ -170,8 +170,12 @@ export default function ChatWidget() {
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         ) : (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9.5 3.5c-2.5 0-4.5 2-4.5 4.5v2.2c0 1.1-.4 2.2-1.2 3l-1.3 1.3h17l-1.3-1.3c-.8-.8-1.2-1.9-1.2-3V8c0-2.5-2-4.5-4.5-4.5h-3z" />
+            <path d="M9 18.5h6" />
+            <path d="M10.5 21a1.5 1.5 0 003 0" />
+            <path d="M18.4 3.2l.8-1.2" />
+            <path d="M20.8 5.2h1.4" />
           </svg>
         )}
         {hasUnread && <span className="chat-fab-badge" />}
