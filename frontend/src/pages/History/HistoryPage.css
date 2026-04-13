@@ -374,6 +374,18 @@
 
 .mh-cal-active:hover { opacity: 1 !important; }
 
+.mh-cal-count {
+  fill: rgba(255, 255, 255, 0.9);
+  font-size: 6.6px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.mh-cal-today-ring {
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.55));
+}
+
 .mh-cal-legend {
   display: flex;
   align-items: center;
@@ -602,4 +614,5 @@
   .mh-stats-grid { grid-template-columns: 1fr 1fr; }
   .mh-wow-grid { grid-template-columns: 1fr 1fr; }
   .mh-entry-preview { max-width: 150px; }
+  .mh-cal-count { font-size: 6px; }
 }

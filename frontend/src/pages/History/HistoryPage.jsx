@@ -188,6 +188,22 @@ function CalendarHeatmap({ data = [] }) {
   const months = [];
   let lastMonth = -1;
 
+  const todayStr = today.toISOString().split("T")[0];
+  const maxCount = Math.max(1, ...data.map((d) => d.count || 0));
+
+  const getCellOpacity = (count) => {
+    if (count <= 0) return 1;
+    // Granular scaling that saturates slower than the old linear formula.
+    const normalized = Math.min(count / (maxCount + 2), 1);
+    return 0.18 + normalized * 0.74;
+  };
+
+  const getCellCountLabel = (count) => {
+    if (count <= 0) return "";
+    if (count < 10) return String(count);
+    return "9+";
+  };
+
   for (let i = 0; i < 13 * 7; i++) {
     const d = new Date(startDate);
     d.setDate(d.getDate() + i);
@@ -213,6 +229,7 @@ function CalendarHeatmap({ data = [] }) {
       count: entry?.count || 0,
       emotion: entry?.dominant_emotion || "",
       isFuture,
+      isToday: dateStr === todayStr,
     });
   }
 
@@ -227,27 +244,53 @@ function CalendarHeatmap({ data = [] }) {
       ))}
       {/* Day cells */}
       {cells.map((c, i) => (
-        <rect
-          key={i}
-          x={c.x}
-          y={c.y}
-          width={cellSize}
-          height={cellSize}
-          rx="2.5"
-          fill={
-            c.isFuture
-              ? "transparent"
-              : c.count === 0
-              ? "rgba(255,255,255,0.03)"
-              : EMOTION_COLORS[c.emotion] || "#ff6b8a"
-          }
-          opacity={c.isFuture ? 0 : c.count === 0 ? 1 : Math.min(0.3 + c.count * 0.25, 1)}
-          className={c.count > 0 && !c.isFuture ? "mh-cal-active" : ""}
-        >
-          {!c.isFuture && c.count > 0 && (
-            <title>{`${c.date}: ${c.count} ${c.count === 1 ? "analysis" : "analyses"} (${c.emotion})`}</title>
+        <g key={i}>
+          <rect
+            x={c.x}
+            y={c.y}
+            width={cellSize}
+            height={cellSize}
+            rx="2.5"
+            fill={
+              c.isFuture
+                ? "transparent"
+                : c.count === 0
+                ? "rgba(255,255,255,0.03)"
+                : EMOTION_COLORS[c.emotion] || "#ff6b8a"
+            }
+            opacity={c.isFuture ? 0 : c.count === 0 ? 1 : getCellOpacity(c.count)}
+            className={`${c.count > 0 && !c.isFuture ? "mh-cal-active" : ""} ${c.isToday ? "mh-cal-today" : ""}`.trim()}
+          >
+            {!c.isFuture && c.count > 0 && (
+              <title>{`${c.date}: ${c.count} ${c.count === 1 ? "analysis" : "analyses"} (${c.emotion})`}</title>
+            )}
+            {!c.isFuture && c.count === 0 && <title>{`${c.date}: no analyses`}</title>}
+          </rect>
+          {!c.isFuture && c.isToday && (
+            <rect
+              x={c.x - 1}
+              y={c.y - 1}
+              width={cellSize + 2}
+              height={cellSize + 2}
+              rx="3.5"
+              fill="none"
+              stroke="rgba(255,255,255,0.9)"
+              strokeWidth="1.1"
+              className="mh-cal-today-ring"
+            />
           )}
-        </rect>
+          {!c.isFuture && c.count > 0 && (
+            <text
+              x={c.x + cellSize / 2}
+              y={c.y + cellSize / 2 + 0.4}
+              textAnchor="middle"
+              dominantBaseline="central"
+              className="mh-cal-count"
+            >
+              {getCellCountLabel(c.count)}
+            </text>
+          )}
+        </g>
       ))}
     </svg>
   );
