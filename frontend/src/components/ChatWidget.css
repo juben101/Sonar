@@ -96,6 +96,25 @@
   100% { transform: scale(1.18); opacity: 0; }
 }
 
+@keyframes chatHeaderAvatarShimmer {
+  0%,
+  78% {
+    transform: translateX(-170%) rotate(8deg);
+    opacity: 0;
+  }
+  82% {
+    opacity: 0.55;
+  }
+  92% {
+    transform: translateX(170%) rotate(8deg);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(170%) rotate(8deg);
+    opacity: 0;
+  }
+}
+
 .chat-fab-badge {
   position: absolute;
   top: -2px;
@@ -116,8 +135,11 @@
   width: 430px;
   height: min(590px, calc(100vh - 132px));
   border-radius: 20px;
-  background: rgba(12, 12, 18, 0.97);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(120% 120% at 10% 0%, rgba(255, 60, 100, 0.08) 0%, transparent 45%),
+    radial-gradient(100% 100% at 100% 100%, rgba(201, 109, 255, 0.08) 0%, transparent 40%),
+    rgba(10, 10, 14, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(24px);
   display: flex;
   flex-direction: column;
@@ -139,7 +161,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
   flex-shrink: 0;
 }
 
@@ -154,11 +177,29 @@
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(255, 60, 100, 0.1);
+  background: linear-gradient(135deg, rgba(255, 60, 100, 0.2), rgba(201, 109, 255, 0.16));
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.1rem;
+  overflow: hidden;
+}
+
+.chat-header-avatar::before {
+  content: "";
+  position: absolute;
+  inset: -35%;
+  background: linear-gradient(120deg, transparent 35%, rgba(255, 255, 255, 0.45) 50%, transparent 65%);
+  transform: translateX(-170%) rotate(8deg);
+  animation: chatHeaderAvatarShimmer 4.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.chat-header-avatar > * {
+  position: relative;
+  z-index: 1;
 }
 
 .chat-header-status {
@@ -180,15 +221,18 @@
 
 .chat-header-name {
   font-family: 'Syne', sans-serif;
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   font-weight: 700;
-  color: #fff;
+  background: linear-gradient(90deg, #fff, #f7d8ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .chat-header-subtitle {
-  font-size: 0.65rem;
-  color: rgba(255, 255, 255, 0.25);
-  font-weight: 500;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 400;
 }
 
 .chat-header-actions {
@@ -259,7 +303,9 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: rgba(255, 60, 100, 0.08);
+  background: linear-gradient(135deg, rgba(255, 60, 100, 0.18), rgba(201, 109, 255, 0.14));
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -288,15 +334,16 @@
 
 .chat-msg-text {
   margin: 0;
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.82);
   font-family: 'DM Sans', sans-serif;
+  font-weight: 450;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
 
 .chat-msg--user .chat-msg-text {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.95);
 }
 
 /* ── Typing indicator ── */
@@ -340,7 +387,7 @@
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.03);
   color: #fff;
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   font-family: 'DM Sans', sans-serif;
   padding: 10px 14px;
   outline: none;
@@ -350,7 +397,7 @@
 }
 
 .chat-input::placeholder {
-  color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.26);
 }
 
 .chat-input:focus {
@@ -387,8 +434,8 @@
 .chat-disclaimer {
   text-align: center;
   padding: 6px 14px 10px;
-  font-size: 0.6rem;
-  color: rgba(255, 255, 255, 0.12);
+  font-size: 0.64rem;
+  color: rgba(255, 255, 255, 0.24);
   font-family: 'DM Sans', sans-serif;
   flex-shrink: 0;
 }
