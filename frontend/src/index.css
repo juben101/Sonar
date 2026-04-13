@@ -23,3 +23,14 @@ body {
   background: #333;
   border-radius: 3px;
 }
+
+/* ── Keyboard focus indicators (accessibility) ── */
+*:focus-visible {
+  outline: 2px solid rgba(255, 60, 100, 0.6);
+  outline-offset: 2px;
+}
+
+/* Remove default focus ring for mouse users */
+*:focus:not(:focus-visible) {
+  outline: none;
+}

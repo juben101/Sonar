@@ -4,12 +4,14 @@ import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import PageLayout from "../../components/PageLayout";
 import usePlaylistStore from "../../stores/usePlaylistStore";
+import { moodApi } from "../../services/api";
 import "./PlaylistPage.css";
 
 export default function PlaylistPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const data = location.state;
+  const [shareToast, setShareToast] = useState("");
   const [playingId, setPlayingId] = useState(null);
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
@@ -17,8 +19,11 @@ export default function PlaylistPage() {
   const [saved, setSaved] = useState(false);
   const [volume, setVolume] = useState(0.5);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [songPrefs, setSongPrefs] = useState({}); // {song_key: "like"|"dislike"}
+  const [isLoadingStream, setIsLoadingStream] = useState(false);
   const audioRef = useRef(null);
   const progressTimer = useRef(null);
+  const retryCountRef = useRef({}); // Track stream URL retries per video_id
   const { savePlaylist, isPlaylistSaved } = usePlaylistStore();
 
   useEffect(() => {
@@ -26,6 +31,15 @@ export default function PlaylistPage() {
       navigate("/analyze", { replace: true });
     } else {
       setSaved(isPlaylistSaved(data.playlist.title));
+      // Fetch user's song preferences for all tracks in this playlist
+      const songKeys = data.playlist.tracks
+        .map((t) => t.youtube_url || `${t.title}::${t.artist}`)
+        .filter(Boolean);
+      if (songKeys.length > 0) {
+        moodApi.getPreferences(songKeys).then((res) => {
+          setSongPrefs(res.preferences || {});
+        }).catch(() => {});
+      }
     }
   }, [data, navigate, isPlaylistSaved]);
 
@@ -56,8 +70,8 @@ export default function PlaylistPage() {
     setAudioDuration(0);
   }, []);
 
-  const playTrack = useCallback((track) => {
-    if (!track.preview_url) return;
+  const playTrack = useCallback(async (track) => {
+    if (!track.video_id) return;
 
     // Transition effect
     setIsTransitioning(true);
@@ -68,38 +82,76 @@ export default function PlaylistPage() {
       clearInterval(progressTimer.current);
     }
 
-    const audio = new Audio(track.preview_url);
-    audio.volume = volume;
-
-    audio.onloadedmetadata = () => {
-      setAudioDuration(audio.duration);
-    };
-
-    audio.onended = () => {
-      // Auto-play next track
-      const tracks = data?.playlist?.tracks || [];
-      const idx = tracks.findIndex((t) => t.id === track.id);
-      if (idx >= 0 && idx < tracks.length - 1 && tracks[idx + 1].preview_url) {
-        playTrack(tracks[idx + 1]);
-      } else {
-        stopCurrent();
-      }
-    };
-
-    audio.play();
-    audioRef.current = audio;
     setPlayingId(track.id);
+    setIsLoadingStream(true);
 
-    progressTimer.current = setInterval(() => {
-      if (audio.duration) {
-        setAudioProgress((audio.currentTime / audio.duration) * 100);
-        setAudioCurrentTime(audio.currentTime);
+    try {
+      // Fetch audio stream URL on-demand
+      const streamData = await moodApi.getStream(track.video_id);
+      const audioUrl = streamData.audio_url;
+
+      if (!audioUrl) {
+        setIsLoadingStream(false);
+        stopCurrent();
+        return;
       }
-    }, 50);
+
+      const audio = new Audio(audioUrl);
+      audio.volume = volume;
+
+      audio.onloadedmetadata = () => {
+        setAudioDuration(audio.duration);
+        setIsLoadingStream(false);
+      };
+
+      audio.onerror = async () => {
+        // Retry once — stream URL may have expired (403)
+        if (!retryCountRef.current[track.video_id]) {
+          retryCountRef.current[track.video_id] = true;
+          console.log(`Stream expired for ${track.video_id}, re-fetching...`);
+          try {
+            const retry = await moodApi.getStream(track.video_id);
+            if (retry.audio_url) {
+              audio.src = retry.audio_url;
+              audio.load();
+              audio.play().catch(() => {});
+              return;
+            }
+          } catch { /* fall through to stop */ }
+        }
+        setIsLoadingStream(false);
+        stopCurrent();
+      };
+
+      audio.onended = () => {
+        // Auto-play next track
+        const tracks = data?.playlist?.tracks || [];
+        const idx = tracks.findIndex((t) => t.id === track.id);
+        if (idx >= 0 && idx < tracks.length - 1 && tracks[idx + 1].video_id) {
+          playTrack(tracks[idx + 1]);
+        } else {
+          stopCurrent();
+        }
+      };
+
+      audio.play();
+      audioRef.current = audio;
+
+      progressTimer.current = setInterval(() => {
+        if (audio.duration) {
+          setAudioProgress((audio.currentTime / audio.duration) * 100);
+          setAudioCurrentTime(audio.currentTime);
+        }
+      }, 50);
+    } catch (err) {
+      console.error("Failed to load audio stream:", err);
+      setIsLoadingStream(false);
+      stopCurrent();
+    }
   }, [volume, data, stopCurrent]);
 
   const handlePlay = (track) => {
-    if (!track.preview_url) return;
+    if (!track.video_id) return;
     if (playingId === track.id) {
       stopCurrent();
       return;
@@ -109,14 +161,14 @@ export default function PlaylistPage() {
 
   const handlePrev = () => {
     if (!data?.playlist?.tracks) return;
-    const tracks = data.playlist.tracks.filter((t) => t.preview_url);
+    const tracks = data.playlist.tracks.filter((t) => t.video_id);
     const idx = tracks.findIndex((t) => t.id === playingId);
     if (idx > 0) playTrack(tracks[idx - 1]);
   };
 
   const handleNext = () => {
     if (!data?.playlist?.tracks) return;
-    const tracks = data.playlist.tracks.filter((t) => t.preview_url);
+    const tracks = data.playlist.tracks.filter((t) => t.video_id);
     const idx = tracks.findIndex((t) => t.id === playingId);
     if (idx >= 0 && idx < tracks.length - 1) playTrack(tracks[idx + 1]);
   };
@@ -133,6 +185,36 @@ export default function PlaylistPage() {
     setSaved(true);
   };
 
+  // ── Like / Dislike ──
+  const getSongKey = (track) => track.youtube_url || `${track.title}::${track.artist}`;
+
+  const handlePreference = async (track, pref) => {
+    const key = getSongKey(track);
+    const current = songPrefs[key];
+
+    if (current === pref) {
+      // Toggle off — remove preference
+      setSongPrefs((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      try {
+        await moodApi.removePreference(key);
+      } catch (err) {
+        console.error("Failed to remove preference:", err);
+      }
+    } else {
+      // Set new preference
+      setSongPrefs((prev) => ({ ...prev, [key]: pref }));
+      try {
+        await moodApi.setPreference(key, pref, track.title, track.artist);
+      } catch (err) {
+        console.error("Failed to set preference:", err);
+      }
+    }
+  };
+
   if (!data?.playlist) return null;
 
   const { playlist, analysis, preference, settings } = data;
@@ -141,6 +223,31 @@ export default function PlaylistPage() {
     ? playlist.tracks.find((t) => t.id === playingId)
     : null;
 
+
+  // ── Share playlist ──
+  const sharePlaylist = async () => {
+    const trackList = playlist.tracks
+      .slice(0, 8)
+      .map((t, i) => `${i + 1}. ${t.title} — ${t.artist}`)
+      .join("\n");
+    const moreText = playlist.tracks.length > 8 ? `\n...and ${playlist.tracks.length - 8} more` : "";
+    const text = `🎵 ${playlist.title}\n${analysis?.moodEmoji || "🎵"} Mood: ${analysis?.sub_emotion || analysis?.base_emotion || "Vibes"}\n🎶 Genre: ${analysis?.genre || "Mixed"}\n\n${trackList}${moreText}\n\n— Curated by Sonar`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: playlist.title, text });
+        return;
+      } catch { /* user cancelled */ }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setShareToast("Copied to clipboard!");
+      setTimeout(() => setShareToast(""), 2000);
+    } catch {
+      setShareToast("Could not share");
+      setTimeout(() => setShareToast(""), 2000);
+    }
+  };
 
   return (
     <PageLayout>
@@ -238,6 +345,15 @@ export default function PlaylistPage() {
 
                   {/* Transport buttons */}
                   <div className="pl-controls-transport">
+                    <button
+                      className={`pl-ctrl-btn pl-ctrl-btn--pref ${songPrefs[getSongKey(playingTrack)] === "dislike" ? "pl-ctrl-btn--disliked" : ""}`}
+                      onClick={(e) => { e.stopPropagation(); handlePreference(playingTrack, "dislike"); }}
+                      aria-label="Dislike"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zm7-13h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17" />
+                      </svg>
+                    </button>
                     <button className="pl-ctrl-btn" onClick={handlePrev} aria-label="Previous">
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M3 2h2v12H3V2zm11 6L6 14V2l8 6z" />
@@ -256,6 +372,15 @@ export default function PlaylistPage() {
                     <button className="pl-ctrl-btn" onClick={handleNext} aria-label="Next">
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                         <path d="M11 2h2v12h-2V2zM2 8l8 6V2L2 8z" />
+                      </svg>
+                    </button>
+                    <button
+                      className={`pl-ctrl-btn pl-ctrl-btn--pref ${songPrefs[getSongKey(playingTrack)] === "like" ? "pl-ctrl-btn--liked" : ""}`}
+                      onClick={(e) => { e.stopPropagation(); handlePreference(playingTrack, "like"); }}
+                      aria-label="Like"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" />
                       </svg>
                     </button>
                   </div>
@@ -317,6 +442,41 @@ export default function PlaylistPage() {
             </div>
           </div>
 
+          {/* ── Actions ── */}
+          <div className="pl-actions-row">
+            <button className="pl-action-btn" onClick={sharePlaylist}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              Share Playlist
+            </button>
+            {!saved && (
+              <button className="pl-action-btn" onClick={() => {
+                savePlaylist(playlist, analysis, preference, settings);
+                setSaved(true);
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+                  <polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+                </svg>
+                Save to Library
+              </button>
+            )}
+            {saved && (
+              <span className="pl-saved-badge">✓ Saved</span>
+            )}
+          </div>
+          {shareToast && <div className="pl-share-toast">{shareToast}</div>}
+
+          {/* ── Why This Playlist ── */}
+          {playlist.playlist_reason && (
+            <section className="pl-reason-section">
+              <div className="pl-reason-badge">✦ WHY THIS PLAYLIST</div>
+              <p className="pl-reason-text">{playlist.playlist_reason}</p>
+            </section>
+          )}
+
           {/* ── Track List ── */}
           <section className="pl-tracklist">
             {playlist.tracks.length > 0 ? (
@@ -353,15 +513,37 @@ export default function PlaylistPage() {
                     <span className="pl-track-artist">{track.artist}</span>
                   </div>
 
+                  <div className="pl-track-prefs">
+                    <button
+                      className={`pl-track-pref-btn ${songPrefs[getSongKey(track)] === "dislike" ? "pl-track-pref-btn--disliked" : ""}`}
+                      onClick={(e) => { e.stopPropagation(); handlePreference(track, "dislike"); }}
+                      aria-label={`Dislike ${track.title}`}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zm7-13h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17" />
+                      </svg>
+                    </button>
+                    <button
+                      className={`pl-track-pref-btn ${songPrefs[getSongKey(track)] === "like" ? "pl-track-pref-btn--liked" : ""}`}
+                      onClick={(e) => { e.stopPropagation(); handlePreference(track, "like"); }}
+                      aria-label={`Like ${track.title}`}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" />
+                      </svg>
+                    </button>
+                  </div>
                   <span className="pl-track-duration">{track.duration}</span>
 
-                  {track.preview_url ? (
+                  {track.video_id ? (
                     <button
-                      className={`pl-track-play ${playingId === track.id ? "pl-track-play--active" : ""}`}
+                      className={`pl-track-play ${playingId === track.id ? "pl-track-play--active" : ""} ${isLoadingStream && playingId === track.id ? "pl-track-play--loading" : ""}`}
                       onClick={(e) => { e.stopPropagation(); handlePlay(track); }}
                       aria-label={playingId === track.id ? `Pause ${track.title}` : `Play ${track.title}`}
                     >
-                      {playingId === track.id ? (
+                      {isLoadingStream && playingId === track.id ? (
+                        <div className="pl-track-spinner" />
+                      ) : playingId === track.id ? (
                         <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor">
                           <rect x="0" y="0" width="3" height="12" />
                           <rect x="7" y="0" width="3" height="12" />
@@ -374,15 +556,15 @@ export default function PlaylistPage() {
                     </button>
                   ) : (
                     <a
-                      href={track.spotify_url}
+                      href={track.youtube_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="pl-track-play pl-track-play--spotify"
+                      className="pl-track-play pl-track-play--ytmusic"
                       onClick={(e) => e.stopPropagation()}
-                      aria-label={`Open ${track.title} on Spotify`}
+                      aria-label={`Open ${track.title} on YouTube Music`}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                        <path d="M12 0C5.376 0 0 5.376 0 12s5.376 12 12 12 12-5.376 12-12S18.624 0 12 0zm4.95 12.53l-6.6 4.4A.636.636 0 019.35 16.4V7.6a.636.636 0 011-.53l6.6 4.4a.636.636 0 010 1.06z"/>
                       </svg>
                     </a>
                   )}

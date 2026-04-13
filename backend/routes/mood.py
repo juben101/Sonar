@@ -11,6 +11,7 @@ from database import get_db
 from dependencies.auth import get_current_user
 from limiter import limiter
 from models.mood_entry import MoodEntry
+from models.song_preference import SongPreference
 from models.user import User
 from schemas import (
     MoodAnalyzeRequest,
@@ -19,12 +20,16 @@ from schemas import (
     MoodStatsResponse,
     PlaylistRequest,
     PlaylistResponse,
+    SongPreferenceBatchResponse,
+    SongPreferenceRequest,
+    SongPreferenceResponse,
     TranscribeResponse,
 )
 from services.mood_service import (
     analyze_mood,
     fetch_weather,
     generate_playlist,
+    stream_audio,
     transcribe,
 )
 
@@ -39,11 +44,11 @@ async def transcribe_audio(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> TranscribeResponse:
-    """Transcribe uploaded audio to text via Deepgram/AssemblyAI."""
+    """Transcribe uploaded audio to text + prosodic features via Deepgram/AssemblyAI."""
     audio_bytes = await audio.read()
     content_type = audio.content_type or "audio/webm"
-    text = await transcribe(audio_bytes, content_type)
-    return TranscribeResponse(text=text)
+    result = await transcribe(audio_bytes, content_type)
+    return TranscribeResponse(text=result["text"], prosodic=result.get("prosodic", {}))
 
 
 @router.post("/analyze", response_model=MoodAnalyzeResponse)
@@ -60,7 +65,7 @@ async def analyze_text(
     if body.lat is not None and body.lon is not None:
         weather_context = await fetch_weather(body.lat, body.lon)
 
-    result = await analyze_mood(body.text, weather_context)
+    result = await analyze_mood(body.text, weather_context, body.prosodic)
 
     # ── Auto-save to mood history ──
     # Extract energy and valence from dimensions if available
@@ -197,6 +202,80 @@ async def get_mood_stats(
     # Dominant emotion
     dominant_emotion = emotion_counts.most_common(1)[0][0] if emotion_counts else ""
 
+    # ── Streak (consecutive days with at least 1 analysis) ──
+    today = datetime.now(timezone.utc).date()
+    analysis_dates = sorted(
+        set(e.created_at.date() for e in entries if e.created_at), reverse=True
+    )
+    streak = 0
+    expected = today
+    for d in analysis_dates:
+        if d == expected:
+            streak += 1
+            expected -= timedelta(days=1)
+        elif d == expected - timedelta(days=1):
+            # Allow yesterday as start
+            expected = d
+            streak += 1
+            expected -= timedelta(days=1)
+        else:
+            break
+
+    # ── Week-over-Week Comparison ──
+    now = datetime.now(timezone.utc)
+    this_week_start = now - timedelta(days=7)
+    last_week_start = now - timedelta(days=14)
+
+    this_week = [e for e in entries if e.created_at and e.created_at >= this_week_start]
+    last_week = [
+        e
+        for e in entries
+        if e.created_at and last_week_start <= e.created_at < this_week_start
+    ]
+
+    def avg_or_zero(items, attr):
+        vals = [getattr(e, attr, 0) for e in items]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    week_comparison = {
+        "this_week_analyses": len(this_week),
+        "last_week_analyses": len(last_week),
+        "confidence_delta": round(
+            avg_or_zero(this_week, "confidence") - avg_or_zero(last_week, "confidence"),
+            1,
+        ),
+        "energy_delta": round(
+            avg_or_zero(this_week, "energy") - avg_or_zero(last_week, "energy"), 1
+        ),
+        "valence_delta": round(
+            avg_or_zero(this_week, "valence") - avg_or_zero(last_week, "valence"), 1
+        ),
+    }
+
+    # ── Calendar Heatmap Data (last 90 days) ──
+    cal_start = now - timedelta(days=90)
+    cal_entries = [e for e in entries if e.created_at and e.created_at >= cal_start]
+    cal_map = {}
+    for e in cal_entries:
+        day_key = e.created_at.strftime("%Y-%m-%d")
+        if day_key not in cal_map:
+            cal_map[day_key] = {"count": 0, "emotions": []}
+        cal_map[day_key]["count"] += 1
+        cal_map[day_key]["emotions"].append(e.base_emotion)
+
+    calendar_data = []
+    for day_key, info in sorted(cal_map.items()):
+        dominant = (
+            Counter(info["emotions"]).most_common(1)[0][0] if info["emotions"] else ""
+        )
+        calendar_data.append(
+            {
+                "date": day_key,
+                "count": info["count"],
+                "dominant_emotion": dominant,
+            }
+        )
+
     return MoodStatsResponse(
         emotion_distribution=emotion_distribution,
         avg_confidence=round(avg_confidence, 1),
@@ -204,6 +283,9 @@ async def get_mood_stats(
         daily_moods=daily_moods,
         top_genre=top_genre,
         dominant_emotion=dominant_emotion,
+        streak=streak,
+        week_comparison=week_comparison,
+        calendar_data=calendar_data,
     )
 
 
@@ -215,7 +297,7 @@ async def get_playlist(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> PlaylistResponse:
-    """Generate a Spotify playlist based on mood and user preferences."""
+    """Generate a YouTube Music playlist based on mood and user preferences."""
     playlist = await generate_playlist(
         body.dimensions,
         body.preference,
@@ -227,3 +309,115 @@ async def get_playlist(
         base_emotion=body.base_emotion,
     )
     return PlaylistResponse(**playlist)
+
+
+@router.get("/stream/{video_id}")
+@limiter.limit("30/minute")
+async def get_stream(
+    request: Request,
+    video_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Extract audio stream URL for a YouTube Music track (on-demand)."""
+    try:
+        audio_url = await stream_audio(video_id)
+        return {"audio_url": audio_url}
+    except Exception as e:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=502, detail=f"Could not extract audio: {e}")
+
+
+# ══════════════════════════════════════
+#  Song Preference Endpoints
+# ══════════════════════════════════════
+
+
+@router.put("/songs/preference", response_model=SongPreferenceResponse)
+@limiter.limit("60/minute")
+async def set_song_preference(
+    request: Request,
+    body: SongPreferenceRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongPreferenceResponse:
+    """Set or update a like/dislike preference for a song (upsert)."""
+    # Check if preference already exists
+    result = await db.execute(
+        select(SongPreference).where(
+            SongPreference.user_id == current_user.id,
+            SongPreference.song_key == body.song_key,
+        )
+    )
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        existing.preference = body.preference
+        existing.song_title = body.song_title or existing.song_title
+        existing.song_artist = body.song_artist or existing.song_artist
+    else:
+        pref = SongPreference(
+            user_id=current_user.id,
+            song_key=body.song_key,
+            preference=body.preference,
+            song_title=body.song_title,
+            song_artist=body.song_artist,
+        )
+        db.add(pref)
+
+    await db.commit()
+
+    return SongPreferenceResponse(
+        song_key=body.song_key,
+        preference=body.preference,
+        song_title=body.song_title,
+        song_artist=body.song_artist,
+    )
+
+
+@router.delete("/songs/preference/{song_key}")
+@limiter.limit("60/minute")
+async def remove_song_preference(
+    request: Request,
+    song_key: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove a like/dislike preference for a song."""
+    result = await db.execute(
+        select(SongPreference).where(
+            SongPreference.user_id == current_user.id,
+            SongPreference.song_key == song_key,
+        )
+    )
+    existing = result.scalar_one_or_none()
+    if existing:
+        await db.delete(existing)
+        await db.commit()
+    return {"status": "ok"}
+
+
+@router.post("/songs/preferences", response_model=SongPreferenceBatchResponse)
+@limiter.limit("30/minute")
+async def get_song_preferences(
+    request: Request,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SongPreferenceBatchResponse:
+    """Get preferences for a batch of song keys. Body: {"song_keys": [...]}"""
+    song_keys = body.get("song_keys", [])
+    if not song_keys:
+        return SongPreferenceBatchResponse(preferences={})
+
+    result = await db.execute(
+        select(SongPreference).where(
+            SongPreference.user_id == current_user.id,
+            SongPreference.song_key.in_(song_keys),
+        )
+    )
+    prefs = result.scalars().all()
+
+    return SongPreferenceBatchResponse(
+        preferences={p.song_key: p.preference for p in prefs}
+    )

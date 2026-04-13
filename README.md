@@ -10,9 +10,16 @@ _A multimodal framework combining emotion recognition, uncertainty modeling, hyb
 [![React](https://img.shields.io/badge/React_18-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://postgresql.org)
 [![Vite](https://img.shields.io/badge/Vite_7-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev)
-[![Spotify](https://img.shields.io/badge/Spotify_API-1DB954?style=for-the-badge&logo=spotify&logoColor=white)](https://developer.spotify.com)
+[![YouTube Music](https://img.shields.io/badge/YouTube_Music-FF0000?style=for-the-badge&logo=youtube-music&logoColor=white)](https://music.youtube.com)
+[![Tests](https://img.shields.io/badge/Tests-68_Passing-34d399?style=for-the-badge)](.)
 
-📄 **[Research Journal](#)** · 📋 **[Patent Filing](#)**
+<br/>
+
+[![Conference Paper](https://img.shields.io/badge/📑_Conference_Paper-View_Publication-2563eb?style=for-the-badge)](https://ieeexplore.ieee.org/document/11465594)
+&nbsp;&nbsp;
+[![Research Journal](https://img.shields.io/badge/📄_Research_Journal-Read_Full_Paper-7c3aed?style=for-the-badge)](#)
+&nbsp;&nbsp;
+[![Patent](https://img.shields.io/badge/📋_Patent_Filing-View_Application-e11d48?style=for-the-badge)](#)
 
 </div>
 
@@ -20,14 +27,14 @@ _A multimodal framework combining emotion recognition, uncertainty modeling, hyb
 
 ## 📌 About
 
-**SONAR** is a full-stack AI-powered music platform that detects your emotional state through **text** or **voice** input, models prediction uncertainty with confidence-aware fusion, and generates personalized Spotify playlists — all in real time.
+**SONAR** is a full-stack AI-powered music platform that detects your emotional state through **text** or **voice** input, models prediction uncertainty with confidence-aware fusion, and generates personalized playlists with on-demand streaming — all in real time.
 
 > _"Music that feels what you feel."_
 
-Unlike traditional systems that treat emotions as deterministic labels with static mappings, SONAR **models uncertainty explicitly**, **adapts using real user feedback (RLHF)**, and remains **interpretable and robust** in noisy real-world inputs.
+Unlike traditional systems that treat emotions as deterministic labels with static mappings, SONAR **models uncertainty explicitly**, **adapts using real user feedback (RLHF)**, and remains **interpretable and robust** in noisy real-world inputs. The system includes an AI wellness companion chatbot with RAG over your emotional history, providing psychotherapy-informed conversational support.
 
 > [!NOTE]
-> The system design described in this README is **patent-pending**. For detailed technical insights, methodology, and experimental results, please refer to our **[published research journal](#)**.
+> The system design described below is **patent-pending**. For detailed technical insights, methodology, ablation studies, and experimental results, please refer to our **[conference paper](https://ieeexplore.ieee.org/document/11465594)** and **[research journal](#)**.
 
 ---
 
@@ -40,7 +47,8 @@ Unlike traditional systems that treat emotions as deterministic labels with stat
 └───────────┬──────────────────┬───────────────────────────────────────┘
             │                  │
     ┌───────▼──────┐   ┌──────▼───────┐
-    │ Text Pipeline│   │Speech Pipeline│
+    │ Text Pipeline│   │Speech        │
+    │              │   │     Pipeline │
     │  (EmoBertX)  │   │   (WavLM)    │
     │              │   │              │
     │ • Coarse     │   │ • Prosodic   │
@@ -52,25 +60,25 @@ Unlike traditional systems that treat emotions as deterministic labels with stat
     └───────┬──────┘   └──────┬───────┘
             │                  │
     ┌───────▼──────────────────▼───────┐
-    │   ⚖️  Confidence-Aware Fusion    │
-    │                                   │
-    │  • Trust-weighted combination     │
-    │  • Conflict resolution            │
-    │  • Uncertainty thresholding       │
+    │   ⚖️  Confidence-Aware Fusion    |
+    │                                  │
+    │  • Trust-weighted combination    │
+    │  • Conflict resolution           │
+    │  • Uncertainty thresholding      │
     └──────────────┬───────────────────┘
                    │
     ┌──────────────▼───────────────────┐
     │   👤  Emotional User Profile     │
-    │                                   │
-    │  {emotion, fine_emotion,          │
-    │   sentiment, confidence,          │
-    │   modality, threshold_flag}       │
+    │                                  │
+    │  {emotion, fine_emotion,         │
+    │   sentiment, confidence,         │
+    │   modality, threshold_flag}      │
     └──────────────┬───────────────────┘
                    │
     ┌──────────────▼───────────────────┐
     │  🎼  Hybrid Recommendation       │
-    │       Engine                      │
-    │                                   │
+    │       Engine                     │
+    │                                  │
     │  Rule-Based + Content-Based      │
     │  + Collaborative Filtering       │
     │  + Weather Context               │
@@ -79,7 +87,7 @@ Unlike traditional systems that treat emotions as deterministic labels with stat
     ┌──────────────▼───────────────────┐
     │  🤖  RLHF Personalization        │
     │       (LinUCB Bandits)           │
-    │                                   │
+    │                                  │
     │  Explore ↔ Exploit               │
     │  Reward: skip/listen/like/save   │
     └──────────────┬───────────────────┘
@@ -87,6 +95,7 @@ Unlike traditional systems that treat emotions as deterministic labels with stat
     ┌──────────────▼───────────────────┐
     │  🎵  Personalized Playlist       │
     │  + Explainability Layer          │
+    │  + AI Wellness Companion         │
     └──────────────────────────────────┘
 ```
 
@@ -96,74 +105,82 @@ Unlike traditional systems that treat emotions as deterministic labels with stat
 
 ### 1. Multimodal Emotion Analysis
 
-SONAR extracts emotions from two complementary modalities:
+SONAR extracts emotions from two complementary modalities — **text as semantic emotion** and **speech as expressive emotion**:
 
 | Pipeline | Model | Extracts |
 |----------|-------|----------|
-| **Text** (semantic) | EmoBertX | Coarse emotions, 27-class fine-grained (GoEmotions), sentiment polarity, confidence |
-| **Speech** (expressive) | WavLM | Prosodic features (pitch, energy, rhythm), coarse emotion, ASR → text for fine-grained |
+| **Text** (semantic) | EmoBertX | Coarse emotions, 27-class fine-grained (GoEmotions), sentiment polarity (Sentiment140), confidence scores |
+| **Speech** (expressive) | WavLM | Prosodic features (pitch, energy, rhythm, speaking rate, pause patterns), coarse emotion, ASR → text for fine-grained inference, ASR confidence |
 
 ### 2. Confidence-Aware Fusion
 
-Instead of naïve averaging, SONAR performs **trust-based fusion** — each modality is assigned a dynamic trust weight. When modalities conflict, the higher-confidence prediction wins. Confidence propagates through the pipeline: agreement yields high confidence, disagreement triggers automatic reduction.
+Instead of naïve averaging, SONAR performs **trust-based fusion** — each modality is assigned a dynamic trust weight based on its confidence. When modalities conflict, the higher-confidence prediction wins. Agreement yields high confidence; disagreement triggers automatic reduction.
 
-### 3. Uncertainty Handling
+### 3. Uncertainty Handling _(Core Differentiator)_
 
-The core differentiator — predictions below a confidence threshold **fall back to neutral** rather than propagating errors. Fine-grained emotions are only surfaced when confidence is high enough to be meaningful.
+Predictions below a confidence threshold **fall back to neutral** rather than propagating errors downstream. Fine-grained emotions are only surfaced when confidence is high enough to be meaningful — preventing noisy real-world inputs from corrupting recommendations.
 
 ### 4. Hybrid Recommendation Engine
 
-Three complementary strategies merge into a single candidate set:
-- **Rule-Based** — emotion → genre mapping (cold-start support)
-- **Content-Based** — audio embeddings, tempo, energy, valence matching
-- **Collaborative Filtering** — similar users' preferences for personalization and discovery
-
-Weather context from the user's location further influences genre selection.
+Three complementary strategies merge into a unified candidate set:
+- **Rule-Based** — emotion → genre mapping for cold-start support  
+- **Content-Based** — audio embeddings, tempo, energy, valence matching  
+- **Collaborative Filtering** — similar users' preferences for personalization and discovery  
+- **Weather Context** — real-time location-aware genre influence
 
 ### 5. RLHF Personalization (LinUCB)
 
-SONAR uses contextual bandits to **learn how each user reacts to emotions** — not just emotions themselves. Reward signals (skip → negative, full listen → positive, like/save → strong positive) drive the exploration/exploitation balance toward personalized convergence.
+Contextual bandits learn **how each user reacts to emotions** — not just emotions themselves. Reward signals (skip → negative, full listen → positive, like/save → strong positive) drive the exploration/exploitation balance toward personalized convergence.
 
 ### 6. Explainability
 
-Dual-level SHAP-based explanations surface both **why an emotion was detected** (token importance) and **why specific songs were recommended** (reasoning chain).
+Dual-level explanations surface both **why an emotion was detected** (SHAP-based token/prosodic importance) and **why specific songs were recommended** (emotion reasoning chain + personalization context).
 
-> 📖 **For detailed methodology, experimental results, and ablation studies**, please visit our **[research journal](#)**.
+> 📖 **For detailed methodology, experimental results, and ablation studies**, visit our **[conference paper](#)** and **[research journal](#)**.
 
 ---
 
 ## ✨ Features
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| 🔐 **Secure Auth** | ✅ | JWT access/refresh tokens, bcrypt, token revocation |
-| 🎭 **Emotion Analysis** | ✅ | 5 base × 28 sub-emotions with confidence scores |
-| 🎤 **Voice Input** | ✅ | Real-time recording with live waveform visualization |
-| 🗣 **Speech-to-Text** | ✅ | Auto-transcription with provider fallback (Deepgram → AssemblyAI) |
-| 🌤 **Weather Context** | ✅ | Location-aware genre influence via OpenWeatherMap |
-| 🎵 **Spotify Integration** | ✅ | Real tracks with 30s audio previews |
-| 💿 **Vinyl Player** | ✅ | Premium vinyl record player with tonearm, grooves, and spin-up animation |
-| 💾 **Playlist Saving** | ✅ | Save to dashboard, re-view, delete (localStorage persistence) |
-| 🎛 **Playback Controls** | ✅ | Prev/Next, volume, progress bar, auto-play next track |
-| ❄️ **Ambient Effects** | ✅ | Snowfall particles, animated starfield, glassmorphism |
-| 📱 **Responsive** | ✅ | Desktop, tablet, and mobile optimized |
-| 📊 **Mood History** | 🔜 | Emotional trends over time with charts |
-| 🤖 **RLHF Layer** | 🔜 | Contextual bandit personalization |
+| Feature | Description |
+|---------|-------------|
+| 🔐 **Secure Auth** | JWT access/refresh tokens, bcrypt hashing, token revocation |
+| 🎭 **Emotion Analysis** | 5 base × 28 sub-emotions with confidence scores and dimensional spectrum |
+| 🎤 **Voice Input** | Real-time recording with live waveform + prosodic feature extraction |
+| 🗣 **Speech-to-Text** | Auto-transcription with prosodic analysis (pace, pauses, clarity) |
+| 🌤 **Weather Context** | Location-aware genre influence via OpenWeatherMap |
+| 🎵 **YouTube Music** | Real tracks with on-demand audio streaming + auto-retry on expired URLs |
+| 💿 **Vinyl Player** | Premium vinyl record with tonearm, grooves, spin-up animation, album art |
+| 💾 **Playlist Saving** | Save to dashboard, replay, delete — persisted to localStorage |
+| 👍👎 **RLHF Tracking** | Per-track like/dislike for preference learning |
+| 🎛 **Playback Controls** | Prev/Next, progress bar, auto-play next track |
+| 📊 **Mood History** | Confidence/energy area charts, emotion pie, valence trend, calendar heatmap |
+| 🕸 **Emotion Radar** | SVG spider chart showing 6-dimensional emotional spectrum over time |
+| 📈 **Analytics** | Streak counter, animated stats, week-over-week comparison, gradient headers |
+| 🤖 **AI Companion** | Floating chatbot with RAG over mood history, psychotherapy techniques, crisis support |
+| 🔗 **Social Sharing** | Share mood analysis and playlists via Web Share API / clipboard |
+| 👋 **Onboarding** | Guided 3-step intro for first-time users |
+| ❄️ **Ambient Effects** | Snowfall particles, animated starfield, glassmorphism |
+| 📱 **Responsive** | Desktop, tablet, and mobile optimized |
+| ⚡ **Code-Split** | React.lazy() — 254 KB initial bundle (63% reduction) |
+| 🛡 **Error Boundary** | Global crash protection preventing white-screen errors |
 
 ---
 
 ## 🛠 Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 18, Vite 7, React Router v6, Zustand, TanStack Query |
-| **Backend** | FastAPI (Python), SQLAlchemy 2.0, httpx |
-| **Database** | PostgreSQL |
+|-------|-----------:|
+| **Frontend** | React 18, Vite 7, React Router v6, Zustand, TanStack Query, Recharts |
+| **Backend** | FastAPI (Python), SQLAlchemy 2.0 (async), httpx, Alembic |
+| **Database** | PostgreSQL (async via psycopg3) |
 | **Auth** | JWT (Access + Refresh tokens), bcrypt |
-| **Music** | Spotify Web API (Client Credentials + Recommendations) |
+| **Music** | YouTube Music API (ytmusicapi + yt-dlp for streaming) |
 | **Voice** | Deepgram Nova-2 (primary), AssemblyAI (fallback) |
 | **Weather** | OpenWeatherMap API |
-| **Styling** | Vanilla CSS, react-snowfall, glassmorphism, micro-animations |
+| **Styling** | Vanilla CSS, glassmorphism, micro-animations, react-snowfall |
+| **Testing** | pytest + respx (backend), Vitest + Testing Library (frontend) |
+| **Linting** | ruff (Python), ESLint (JavaScript) |
 
 ---
 
@@ -173,69 +190,42 @@ Dual-level SHAP-based explanations surface both **why an emotion was detected** 
 Sonar/
 ├── frontend/
 │   ├── src/
-│   │   ├── app/                  # App root + router + Snowfall overlay
-│   │   ├── components/           # Shared UI (StarfieldCanvas, Navbar, Footer, Toast)
+│   │   ├── app/                  # App root + router + Suspense + ChatWidget
+│   │   ├── components/           # Shared UI (ChatWidget, Navbar, Footer, Toast, StarfieldCanvas, ErrorBoundary)
 │   │   ├── pages/
 │   │   │   ├── Landing/          # Hero, features, CTA
 │   │   │   ├── Auth/             # Split-screen login/signup
-│   │   │   ├── Dashboard/        # Saved playlists grid, settings modal
-│   │   │   ├── Analyze/          # Text/voice input with live waveform
-│   │   │   ├── Result/           # Emotion cards, genre, weather, customize
-│   │   │   ├── Playlist/         # Vinyl player, track list, playback
+│   │   │   ├── Dashboard/        # Saved playlists grid, onboarding flow, settings modal
+│   │   │   ├── Analyze/          # Text/voice input with live waveform + prosodic extraction
+│   │   │   ├── Result/           # Emotion cards, genre, weather, spectrum, share, customize
+│   │   │   ├── Playlist/         # Vinyl player, track list, share, save, RLHF feedback
+│   │   │   ├── History/          # Mood analytics dashboard (charts, radar, heatmap, streaks)
 │   │   │   └── NotFound/         # 404 page
 │   │   ├── stores/               # Zustand (auth, playlists)
-│   │   ├── hooks/                # Custom hooks (auth mutations)
-│   │   └── services/             # API client with auto-refresh
+│   │   ├── services/             # API client with auto-refresh + chat API
+│   │   └── test/                 # 4 test files (29 tests)
 │   └── package.json
 │
 ├── backend/
-│   ├── models/                   # SQLAlchemy models (User, RefreshToken)
-│   ├── schemas/                  # Pydantic schemas
-│   ├── routes/                   # API routes (auth, mood)
+│   ├── models/                   # SQLAlchemy models (User, RefreshToken, MoodEntry, SongPreference)
+│   ├── schemas/                  # Pydantic v2 schemas with validation
+│   ├── routes/                   # API routes (auth, mood, chat)
 │   ├── services/
 │   │   ├── auth_service.py       # JWT, bcrypt, token management
-│   │   ├── llm_service.py        # Emotion analysis engine
-│   │   ├── spotify_service.py    # Spotify API integration
-│   │   ├── transcription_service.py  # Voice → text (Deepgram/AssemblyAI)
+│   │   ├── llm_service.py        # Emotion analysis engine (3-provider fallback)
+│   │   ├── ytmusic_service.py    # YouTube Music search + curation
+│   │   ├── transcription_service.py  # Voice → text + prosodic features
 │   │   ├── weather_service.py    # Location → weather context
-│   │   └── mood_service.py       # Orchestrator
-│   ├── dependencies/             # FastAPI deps (get_current_user)
+│   │   └── mood_service.py       # Orchestrator + playlist reasoning
+│   ├── middleware/               # Exception handlers, request logging
+│   ├── tests/                    # 3 test files (39 tests)
 │   ├── config.py                 # Settings from .env
-│   ├── database.py               # DB engine + session
+│   ├── database.py               # Async DB engine + session
 │   ├── main.py                   # App entry point
 │   └── requirements.txt
 │
 └── README.md
 ```
-
----
-
-## 🔑 API Endpoints
-
-### Authentication
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `POST` | `/auth/signup` | — | Create account |
-| `POST` | `/auth/login` | — | Login with credentials |
-| `POST` | `/auth/refresh` | — | Refresh access token |
-| `POST` | `/auth/logout` | 🔒 | Revoke refresh token |
-| `GET` | `/auth/me` | 🔒 | Get current user profile |
-
-### Mood Analysis & Playlists
-
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| `POST` | `/v1/mood/analyze` | 🔒 | Analyze text → emotion (with optional weather) |
-| `POST` | `/v1/mood/transcribe` | 🔒 | Transcribe audio file → text |
-| `POST` | `/v1/mood/playlist` | 🔒 | Generate Spotify playlist from genre + settings |
-
-### System
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/` | API status |
-| `GET` | `/health` | Health check |
 
 ---
 
@@ -302,16 +292,22 @@ DATABASE_URL=postgresql+psycopg://youruser@localhost:5432/sonar
 # JWT
 JWT_SECRET_KEY=your-secret-key
 
-# Spotify (required for playlist generation)
-SPOTIFY_CLIENT_ID=your-spotify-client-id
-SPOTIFY_CLIENT_SECRET=your-spotify-client-secret
-
-# Voice Transcription (optional — choose one or both)
+# Voice Transcription (choose one or both)
 DEEPGRAM_API_KEY=your-deepgram-key         # Free: 12,000 min/month
 ASSEMBLYAI_API_KEY=your-assemblyai-key     # Free: 5 hours/month
 
 # Weather (optional — enhances genre recommendations)
 OPENWEATHERMAP_API_KEY=your-weather-key    # Free tier available
+```
+
+### 5. Run Tests
+
+```bash
+# Backend
+cd backend && python3 -m pytest tests/ -v    # 39 tests
+
+# Frontend
+cd frontend && npx vitest run                # 29 tests
 ```
 
 ---
@@ -328,29 +324,40 @@ Auth Page
 Dashboard
   ├─ View saved playlists (cards with mood, track count, duration)
   ├─ Click card → re-open in vinyl player
-  ├─ Delete playlists (hover → ✕)
+  ├─ First-time users → guided 3-step onboarding
+  ├─ 🤖 AI Companion chatbot (floating bottom-right)
   └─ "Generate New Playlist" →
 
 Analyze Page
   ├─ ✏️ Type It Out → text input + mood tags
-  └─ 🎤 Say It Aloud → live mic recording + waveform → auto-transcribe
+  └─ 🎤 Say It Aloud → live mic recording + waveform → prosodic extraction → auto-transcribe
       └─ 📍 Weather context badge (if location enabled)
           ↓
 Result Page
   ├─ Primary Emotion + Sub-emotion cards
-  ├─ Confidence bar (with transparency)
-  ├─ "Why this emotion?" — AI explanation
+  ├─ Confidence bar
+  ├─ "Why this emotion?" — AI explanation (with prosodic cues if voice)
   ├─ 🎵 Recommended Genre (weather-influenced)
   ├─ 🌤 Weather context bar
   ├─ Emotional spectrum (6 dimensions)
+  ├─ 🔗 Share Analysis
   └─ 🎭 Match / 🌟 Uplift → Customize → Generate
           ↓
 Playlist Page
   ├─ 💿 Vinyl record player (spinning disc, tonearm, album art)
   ├─ 🎵 Now Playing: title, artist, progress bar
-  ├─ ⏮ ⏸ ⏭ Transport controls + volume
-  ├─ Track list with 30s preview playback
-  └─ 💾 Save to Dashboard
+  ├─ ⏮ ⏸ ⏭ Transport controls
+  ├─ 👍👎 Like/Dislike per track (RLHF)
+  ├─ ✦ "Why this playlist?" — AI reasoning
+  ├─ 🔗 Share Playlist · 💾 Save to Library
+  └─ Track list with on-demand streaming
+
+Mood History
+  ├─ 📊 Confidence & Energy charts, Emotion distribution, Valence trends
+  ├─ 🗓 Calendar heatmap (GitHub-style)
+  ├─ 🕸 Emotion radar chart
+  ├─ 🔥 Streak counter + animated stats
+  └─ 📈 Week-over-week comparison
 ```
 
 ---
@@ -374,33 +381,17 @@ SONAR classifies emotions in a hierarchical structure:
 > [!IMPORTANT]
 > The **SONAR system design** — including the confidence-aware fusion architecture, uncertainty-based fallback mechanism, multimodal trust estimation, and RLHF-driven personalization pipeline — is **patent-pending**.
 >
-> 📋 **Patent Filing**: [View Patent Application](#)
->
-> 📄 **Research Journal**: [Read Full Paper](#)
->
-> Please refer to our published work for detailed methodology, architectural decisions, experimental evaluation, and ablation studies.
+> This work has been published as a conference paper and extended into a research journal article. The system design is protected under patent filing.
 
----
+<div align="center">
 
-## 🗺 Roadmap
+[![Conference Paper](https://img.shields.io/badge/📑_Conference_Paper-View_Publication-2563eb?style=for-the-badge)](https://ieeexplore.ieee.org/document/11465594)
+&nbsp;&nbsp;
+[![Research Journal](https://img.shields.io/badge/📄_Research_Journal-Read_Full_Paper-7c3aed?style=for-the-badge)](#)
+&nbsp;&nbsp;
+[![Patent](https://img.shields.io/badge/📋_Patent_Filing-View_Application-e11d48?style=for-the-badge)](#)
 
-- [x] Full-stack project scaffolding + premium dark UI
-- [x] JWT authentication (access + refresh tokens)
-- [x] AI emotion analysis (5 base × 28 sub-emotions)
-- [x] Voice input with live waveform + auto-transcription
-- [x] Weather-influenced genre recommendations
-- [x] Spotify integration with 30s audio previews
-- [x] Vinyl record player with playback controls
-- [x] Playlist saving + dashboard management
-- [x] Ambient effects (snowfall, starfield, glassmorphism)
-- [ ] Mood history dashboard with trend charts
-- [ ] RLHF contextual bandit integration
-- [ ] Spotify OAuth (save playlists to user's Spotify)
-- [ ] Full-length playback via Spotify Web Playback SDK
-- [ ] PWA / offline support
-- [ ] Docker deployment
-
----
+</div>
 
 ## 📄 License
 

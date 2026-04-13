@@ -18,17 +18,17 @@ export default function Navbar({
   backTo = "/dashboard",
   backLabel = "← Back to Library",
   rightContent,
-  onLogoClick = "/",
+  onLogoClick = "/dashboard",
 }) {
   const navigate = useNavigate();
 
   return (
     <nav className="sn-nav">
       <div className="sn-nav-inner">
-        <div className="sn-nav-logo" onClick={() => navigate(onLogoClick)}>
+        <button className="sn-nav-logo" onClick={() => navigate(onLogoClick)} aria-label="Go to Dashboard">
           <span className="sn-nav-logo-icon">🎵</span>
           <span className="sn-nav-logo-text">Sonar</span>
-        </div>
+        </button>
 
         {centerLabel && (
           <div className="sn-nav-center">

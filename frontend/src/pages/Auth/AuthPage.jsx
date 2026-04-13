@@ -44,8 +44,8 @@ export default function AuthPage() {
   const onSignup = async (data) => {
     const result = await signup(data.username, data.password);
     if (result.success) {
-      addToast("Account created! Redirecting...", "success");
-      setTimeout(() => navigate("/dashboard"), 1200);
+      addToast("Account created! Please login to continue.", "success");
+      setTimeout(() => setTab("login"), 1200);
     } else {
       addToast(result.error || "Signup failed", "error");
     }

@@ -56,6 +56,7 @@ class MoodAnalyzeRequest(BaseModel):
     text: str = Field(..., min_length=10, max_length=2000)
     lat: float | None = None
     lon: float | None = None
+    prosodic: dict | None = None  # Prosodic features from voice input
 
 
 class MoodDimension(BaseModel):
@@ -91,6 +92,7 @@ class MoodAnalyzeResponse(BaseModel):
 
 class TranscribeResponse(BaseModel):
     text: str
+    prosodic: dict = {}
 
 
 # ── Playlist schemas ──
@@ -102,7 +104,7 @@ class PlaylistRequest(BaseModel):
     languages: list[str] = Field(default=["English"])
     artists: list[str] = Field(default=[])
     intensity: int = Field(default=50, ge=0, le=100)
-    track_count: int = Field(default=15, ge=5, le=50)
+    track_count: int = Field(default=15, ge=2, le=50)
     genre: str = Field(default="pop")
     base_emotion: str = Field(default="Calm")
 
@@ -114,13 +116,14 @@ class TrackResponse(BaseModel):
     duration: str
     color: str
     album_art: str = ""
-    preview_url: str = ""
-    spotify_url: str = ""
+    video_id: str = ""
+    youtube_url: str = ""
 
 
 class PlaylistResponse(BaseModel):
     title: str
     tracks: list[TrackResponse]
+    playlist_reason: str = ""
 
 
 # ── Mood history schemas ──
@@ -161,6 +164,20 @@ class MoodHistoryResponse(BaseModel):
     total: int
 
 
+class WeekComparison(BaseModel):
+    this_week_analyses: int = 0
+    last_week_analyses: int = 0
+    confidence_delta: float = 0.0
+    energy_delta: float = 0.0
+    valence_delta: float = 0.0
+
+
+class CalendarDay(BaseModel):
+    date: str
+    count: int
+    dominant_emotion: str = ""
+
+
 class MoodStatsResponse(BaseModel):
     emotion_distribution: list[EmotionCount]
     avg_confidence: float
@@ -168,3 +185,46 @@ class MoodStatsResponse(BaseModel):
     daily_moods: list[DailyMood]
     top_genre: str
     dominant_emotion: str
+    streak: int = 0
+    week_comparison: WeekComparison = WeekComparison()
+    calendar_data: list[CalendarDay] = []
+
+
+# ── Song Preference schemas ──
+
+
+class SongPreferenceRequest(BaseModel):
+    song_key: str = Field(..., min_length=1, max_length=255)
+    preference: str = Field(..., pattern=r"^(like|dislike)$")
+    song_title: str = Field(default="", max_length=255)
+    song_artist: str = Field(default="", max_length=255)
+
+
+class SongPreferenceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    song_key: str
+    preference: str
+    song_title: str
+    song_artist: str
+
+
+class SongPreferenceBatchResponse(BaseModel):
+    preferences: dict[str, str]  # {song_key: "like"|"dislike"}
+
+
+# ── Chat schemas ──
+
+
+class ChatMessage(BaseModel):
+    role: str = Field(..., pattern=r"^(user|assistant)$")
+    content: str = Field(..., min_length=1, max_length=5000)
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=2000)
+    history: list[ChatMessage] = Field(default=[])
+
+
+class ChatResponse(BaseModel):
+    response: str

@@ -116,7 +116,7 @@ _TAXONOMY_STR = "\n".join(
 
 # ── System prompt ──
 
-_SYSTEM_PROMPT = f"""You are Sonar's emotion analysis engine. Given user text, you MUST classify the emotion and respond ONLY with valid JSON — no markdown, no extra text.
+_SYSTEM_PROMPT = f"""You are Sonar's emotion analysis engine. Given user text (and optionally their vocal delivery features), you MUST classify the emotion and respond ONLY with valid JSON — no markdown, no extra text.
 
 EMOTION TAXONOMY (5 base → 28 sub-emotions):
 {_TAXONOMY_STR}
@@ -127,9 +127,9 @@ You MUST respond with this EXACT JSON structure:
   "sub_emotion": "<one of the sub-emotions under the chosen base>",
   "sentiment": "<Positive, Negative, or Mixed>",
   "confidence": <integer 60-98>,
-  "explanation": "<2-3 sentences: WHY you classified this emotion. Be empathetic, insightful, reference specific words/phrases from the input. Speak directly to the user with 'you/your'.>",
+  "explanation": "<2-3 sentences: WHY you classified this emotion. Be empathetic, insightful, reference specific words/phrases from the input. If VOCAL DELIVERY info is provided, also mention how their speaking pace, pauses, or clarity influenced your analysis (e.g., 'The way you spoke slowly with long pauses suggests deep reflection'). Speak directly to the user with 'you/your'.>",
   "genre": "<recommend ONE music genre that fits this emotion, e.g. 'indie folk', 'lo-fi hip hop', 'ambient', 'pop punk', 'classical', 'r&b', 'jazz', etc.>",
-  "genre_reason": "<1 sentence: why this genre matches the emotion>",
+  "genre_reason": "<1 sentence: why this genre matches the emotion. If vocal delivery was analyzed, reference how the speaking energy level influenced the genre choice.>",
   "dimensions": {{
     "sadness": <0-100>,
     "joy": <0-100>,
@@ -144,11 +144,15 @@ RULES:
 - confidence must reflect how clearly the emotion comes through (ambiguous text = lower)
 - dimensions must sum to roughly 200-350 (they represent relative intensity, not probabilities)
 - explanation must reference the user's actual words
+- if VOCAL DELIVERY data is provided, it reveals HOW they spoke (pace, pauses, clarity) which is as important as WHAT they said. Factor it into emotion classification, explanation, and genre recommendation
 - be empathetic and insightful, not clinical"""
 
 
 async def _call_llm(
-    provider: dict, text: str, weather_context: dict | None = None
+    provider: dict,
+    text: str,
+    weather_context: dict | None = None,
+    prosodic_context: dict | None = None,
 ) -> dict:
     """Call a single LLM provider and parse the JSON response."""
     settings = get_settings()
@@ -157,8 +161,21 @@ async def _call_llm(
     if not api_key:
         raise ValueError(f"{provider['name']}: no API key configured")
 
-    # Build user message with optional weather context
+    # Build user message with optional weather + prosodic context
     user_msg = f"Analyze the emotion in this text:\n\n{text}"
+
+    if prosodic_context and prosodic_context.get("speaking_rate_wpm"):
+        user_msg += (
+            f"\n\nVOCAL DELIVERY (this text was spoken aloud — these features describe HOW they said it):\n"
+            f"Speaking pace: {prosodic_context.get('speaking_rate_wpm')} words/min ({prosodic_context.get('pace', 'unknown')})\n"
+            f"Pace interpretation: {prosodic_context.get('pace_hint', '')}\n"
+            f"Pauses: {prosodic_context.get('pause_count', 0)} significant pauses\n"
+            f"Pause pattern: {prosodic_context.get('pause_pattern', 'unknown')}\n"
+            f"Speech clarity: {prosodic_context.get('speech_clarity', '?')}% ({prosodic_context.get('clarity_note', '')})\n"
+            f"Speech duration: {prosodic_context.get('speech_duration_sec', '?')} seconds\n"
+            f"\nUse these vocal delivery cues alongside the text content to classify the emotion."
+        )
+
     if weather_context:
         user_msg += (
             f"\n\nWEATHER CONTEXT (factor this into your genre recommendation):\n"
@@ -201,20 +218,24 @@ async def _call_llm(
     return json.loads(content)
 
 
-async def analyze_emotion(text: str, weather_context: dict | None = None) -> dict:
+async def analyze_emotion(
+    text: str,
+    weather_context: dict | None = None,
+    prosodic_context: dict | None = None,
+) -> dict:
     """
     Analyze text emotion using LLM with fallback hierarchy.
 
     Returns structured emotion analysis with base/sub emotion, sentiment,
     confidence, explanation, genre recommendation, and 6 dimensions.
-    Optionally includes weather context for genre influence.
+    Optionally includes weather and prosodic context for richer analysis.
     """
     last_error = None
 
     for provider in _PROVIDERS:
         try:
             logger.info(f"Trying {provider['name']} for emotion analysis...")
-            result = await _call_llm(provider, text, weather_context)
+            result = await _call_llm(provider, text, weather_context, prosodic_context)
 
             # Validate required fields
             base = result.get("base_emotion", "Calm")

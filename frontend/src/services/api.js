@@ -43,7 +43,7 @@ async function request(endpoint, options = {}, _retried = false) {
 /**
  * Raw fetch with auth (for file uploads — no JSON content-type).
  */
-async function rawRequest(endpoint, options = {}) {
+async function rawRequest(endpoint, options = {}, _retried = false) {
   const url = `${API_URL}${endpoint}`;
   const token = localStorage.getItem("sonar_access_token");
 
@@ -57,6 +57,14 @@ async function rawRequest(endpoint, options = {}) {
   }
 
   const response = await fetch(url, config);
+
+  // Auto-refresh on 401 (only once to avoid infinite loops)
+  if (response.status === 401 && !_retried) {
+    const refreshed = await tryRefreshToken();
+    if (refreshed) {
+      return rawRequest(endpoint, options, true);
+    }
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({
@@ -135,8 +143,8 @@ export const authApi = {
 
 // Mood analysis API calls
 export const moodApi = {
-  analyze: (text, lat = null, lon = null) =>
-    api.post("/v1/mood/analyze", { text, lat, lon }),
+  analyze: (text, lat = null, lon = null, prosodic = null) =>
+    api.post("/v1/mood/analyze", { text, lat, lon, prosodic }),
 
   transcribe: (audioBlob) => {
     const formData = new FormData();
@@ -157,4 +165,29 @@ export const moodApi = {
 
   stats: (days = 30) =>
     api.get(`/v1/mood/stats?days=${days}`),
+
+  // Song preferences (like/dislike)
+  setPreference: (songKey, preference, songTitle = "", songArtist = "") =>
+    api.put("/v1/mood/songs/preference", {
+      song_key: songKey,
+      preference,
+      song_title: songTitle,
+      song_artist: songArtist,
+    }),
+
+  removePreference: (songKey) =>
+    api.delete(`/v1/mood/songs/preference/${encodeURIComponent(songKey)}`),
+
+  getPreferences: (songKeys) =>
+    api.post("/v1/mood/songs/preferences", { song_keys: songKeys }),
+
+  // Audio stream (on-demand extraction)
+  getStream: (videoId) =>
+    api.get(`/v1/mood/stream/${encodeURIComponent(videoId)}`),
+};
+
+// Chat API
+export const chatApi = {
+  sendMessage: (message, history = []) =>
+    api.post("/v1/chat/message", { message, history }),
 };

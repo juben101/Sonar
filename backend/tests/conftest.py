@@ -1,15 +1,30 @@
 """Shared test fixtures for backend tests."""
 
 import asyncio
+import os
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
-from config import get_settings
-from database import Base, get_db
-from main import app
-from limiter import limiter
+# ── Set dummy API keys BEFORE importing config ──
+# This ensures services attempt HTTP calls (mocked by respx)
+# instead of bailing with "no API key configured"
+os.environ.setdefault("NVIDIA_NIM_API_KEY", "test-nvidia-key")
+os.environ.setdefault("GROQ_API_KEY", "test-groq-key")
+os.environ.setdefault("TOGETHER_API_KEY", "test-together-key")
+os.environ.setdefault("DEEPGRAM_API_KEY", "test-deepgram-key")
+os.environ.setdefault("ASSEMBLYAI_API_KEY", "test-assemblyai-key")
+os.environ.setdefault("OPENWEATHERMAP_API_KEY", "test-weather-key")
+
+from config import get_settings  # noqa: E402
+
+# Clear cached settings so the env vars above take effect
+get_settings.cache_clear()
+
+from database import Base, get_db  # noqa: E402
+from main import app  # noqa: E402
+from limiter import limiter  # noqa: E402
 
 settings = get_settings()
 

@@ -556,47 +556,123 @@
 }
 
 /* ── Empty State ── */
-.db-empty-state {
+/* ══════════ ONBOARDING ══════════ */
+.db-onboarding {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 4rem 2rem;
+  padding: 3rem 2rem;
   text-align: center;
 }
 
-.db-empty-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-  opacity: 0.3;
+.db-onboard-header {
+  margin-bottom: 2.5rem;
 }
 
-.db-empty-title {
+.db-onboard-wave {
+  display: inline-block;
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  animation: dbWave 2s ease infinite;
+}
+
+@keyframes dbWave {
+  0%, 100% { transform: rotate(0deg); }
+  15%      { transform: rotate(14deg); }
+  30%      { transform: rotate(-8deg); }
+  40%      { transform: rotate(14deg); }
+  50%      { transform: rotate(-4deg); }
+  60%      { transform: rotate(10deg); }
+  70%      { transform: rotate(0deg); }
+}
+
+.db-onboard-title {
   font-family: 'Syne', sans-serif;
-  font-size: 1.3rem;
+  font-size: 1.6rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.5);
+  color: #fff;
   margin: 0 0 0.5rem;
 }
 
-.db-empty-text {
-  color: rgba(255, 255, 255, 0.25);
+.db-onboard-subtitle {
+  color: rgba(255, 255, 255, 0.3);
   font-size: 0.88rem;
-  font-weight: 300;
-  margin: 0 0 1.5rem;
-  max-width: 300px;
+  margin: 0;
+  line-height: 1.6;
 }
 
-.db-empty-cta {
+.db-onboard-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 2.5rem;
+  width: 100%;
+  max-width: 640px;
+}
+
+.db-onboard-step {
+  position: relative;
+  padding: 28px 20px 24px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  text-align: center;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.db-onboard-step:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.db-onboard-step-num {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff3c64, #c96dff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #fff;
+  font-family: 'Syne', sans-serif;
+}
+
+.db-onboard-step-icon {
+  font-size: 1.8rem;
+  margin-bottom: 0.8rem;
+}
+
+.db-onboard-step-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0 0 0.4rem;
+}
+
+.db-onboard-step-desc {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 0.74rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.db-onboard-cta {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 28px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #ff3c64, #e0245e);
+  gap: 10px;
+  padding: 15px 32px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ff3c64, #c96dff);
   border: none;
   color: #fff;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-family: 'DM Sans', sans-serif;
   font-weight: 600;
   cursor: pointer;
@@ -604,9 +680,13 @@
   transition: all 0.2s;
 }
 
-.db-empty-cta:hover {
+.db-onboard-cta:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(255, 60, 100, 0.45);
+  box-shadow: 0 14px 40px rgba(255, 60, 100, 0.4);
+}
+
+.db-onboard-cta-icon {
+  font-size: 1.1rem;
 }
 
 .db-card-info {
@@ -1037,6 +1117,11 @@
 
   .db-grid {
     grid-template-columns: 1fr;
+  }
+
+  .db-onboard-steps {
+    grid-template-columns: 1fr;
+    max-width: 300px;
   }
 
   .db-mood-streak {
