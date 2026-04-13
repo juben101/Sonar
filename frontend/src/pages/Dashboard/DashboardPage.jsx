@@ -8,7 +8,7 @@ import "./DashboardPage.css";
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const { playlists, deletePlaylist } = usePlaylistStore();
+  const { playlists, deletePlaylist, fetchPlaylists } = usePlaylistStore();
   const displayName = user?.username || "User";
   const displayInitial = displayName.charAt(0).toUpperCase();
   const [profileOpen, setProfileOpen] = useState(false);
@@ -26,6 +26,10 @@ export default function DashboardPage() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  useEffect(() => {
+    fetchPlaylists();
+  }, [fetchPlaylists]);
 
   // Time-based greeting
   const hour = new Date().getHours();

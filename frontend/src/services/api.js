@@ -184,6 +184,16 @@ export const moodApi = {
   // Audio stream (on-demand extraction)
   getStream: (videoId) =>
     api.get(`/v1/mood/stream/${encodeURIComponent(videoId)}`),
+
+  // Saved playlists (cross-device)
+  getSavedPlaylists: () =>
+    api.get("/v1/mood/playlists"),
+
+  savePlaylist: (payload) =>
+    api.post("/v1/mood/playlists", payload),
+
+  deleteSavedPlaylist: (playlistId) =>
+    api.delete(`/v1/mood/playlists/${encodeURIComponent(playlistId)}`),
 };
 
 // Chat API

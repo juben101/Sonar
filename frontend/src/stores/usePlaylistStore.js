@@ -1,13 +1,17 @@
 import { create } from "zustand";
+import { moodApi } from "../services/api";
 
-const STORAGE_KEY = "sonar_saved_playlists";
+const STORAGE_KEY_PREFIX = "sonar_saved_playlists";
 
 /**
  * Load playlists from localStorage.
  */
 function loadPlaylists() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const userRaw = localStorage.getItem("sonar_user");
+    const user = userRaw ? JSON.parse(userRaw) : null;
+    const key = `${STORAGE_KEY_PREFIX}:${user?.id || "anon"}`;
+    const raw = localStorage.getItem(key);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -18,7 +22,14 @@ function loadPlaylists() {
  * Save playlists to localStorage.
  */
 function persistPlaylists(playlists) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(playlists));
+  try {
+    const userRaw = localStorage.getItem("sonar_user");
+    const user = userRaw ? JSON.parse(userRaw) : null;
+    const key = `${STORAGE_KEY_PREFIX}:${user?.id || "anon"}`;
+    localStorage.setItem(key, JSON.stringify(playlists));
+  } catch {
+    // ignore local fallback persistence errors
+  }
 }
 
 // Mood → accent color mapping
@@ -41,11 +52,12 @@ const MOOD_GRADIENTS = {
 
 const usePlaylistStore = create((set, get) => ({
   playlists: loadPlaylists(),
+  loading: false,
 
   /**
    * Save a generated playlist to the dashboard.
    */
-  savePlaylist: (playlist, analysis, preference, settings) => {
+  savePlaylist: async (playlist, analysis, preference, settings) => {
     const playlists = get().playlists;
 
     const baseEmotion = analysis?.base_emotion || "Calm";
@@ -56,38 +68,79 @@ const usePlaylistStore = create((set, get) => ({
     const mins = Math.floor(totalDuration / 60);
     const durationStr = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}min` : `${mins} min`;
 
-    const saved = {
-      id: Date.now(),
+    const payload = {
       title: playlist.title || `${baseEmotion} Mix`,
       mood: analysis?.sub_emotion || baseEmotion,
       moodEmoji: analysis?.moodEmoji || "🎵",
       base_emotion: baseEmotion,
       tracks: playlist.tracks.length,
-      trackList: playlist.tracks,
+      track_list: playlist.tracks,
       duration: durationStr,
       gradient: MOOD_GRADIENTS[baseEmotion] || MOOD_GRADIENTS.Calm,
       accent: MOOD_ACCENTS[baseEmotion] || "#ff3c64",
-      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
       preference,
       settings,
       analysis,
-      createdAt: Date.now(),
     };
 
-    const updated = [saved, ...playlists].slice(0, 50); // Max 50 playlists
-    persistPlaylists(updated);
-    set({ playlists: updated });
-
-    return saved.id;
+    try {
+      const saved = await moodApi.savePlaylist(payload);
+      const normalized = {
+        ...saved,
+        moodEmoji: saved.mood_emoji,
+        trackList: saved.trackList || [],
+        date: new Date(saved.created_at || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      };
+      const updated = [normalized, ...playlists].slice(0, 50);
+      persistPlaylists(updated);
+      set({ playlists: updated });
+      return normalized.id;
+    } catch {
+      const fallback = {
+        ...payload,
+        id: `local-${Date.now()}`,
+        trackList: playlist.tracks,
+        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      };
+      const updated = [fallback, ...playlists].slice(0, 50);
+      persistPlaylists(updated);
+      set({ playlists: updated });
+      return fallback.id;
+    }
   },
 
   /**
    * Delete a saved playlist.
    */
-  deletePlaylist: (id) => {
+  deletePlaylist: async (id) => {
+    if (!String(id).startsWith("local-")) {
+      try {
+        await moodApi.deleteSavedPlaylist(id);
+      } catch {
+        // continue with local state cleanup
+      }
+    }
     const updated = get().playlists.filter((p) => p.id !== id);
     persistPlaylists(updated);
     set({ playlists: updated });
+  },
+
+  fetchPlaylists: async () => {
+    set({ loading: true });
+    try {
+      const rows = await moodApi.getSavedPlaylists();
+      const normalized = rows.map((row) => ({
+        ...row,
+        moodEmoji: row.mood_emoji,
+        trackList: row.trackList || [],
+        date: new Date(row.created_at || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      }));
+      persistPlaylists(normalized);
+      set({ playlists: normalized, loading: false });
+    } catch {
+      // Keep local fallback data if server fetch fails.
+      set({ loading: false });
+    }
   },
 
   /**
