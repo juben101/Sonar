@@ -186,7 +186,10 @@ async def get_recommendations(
                 yt.search, query, filter="songs", limit=count + 5
             )
 
+            added_for_query = 0
             for item in results:
+                if added_for_query >= count:
+                    break
                 if len(all_tracks) >= track_count:
                     break
 
@@ -204,7 +207,6 @@ async def get_recommendations(
                 thumbnails = item.get("thumbnails", [])
                 album_art = ""
                 if thumbnails:
-                    # Get the largest thumbnail
                     album_art = thumbnails[-1].get("url", "")
 
                 # Parse duration
@@ -223,19 +225,18 @@ async def get_recommendations(
                         "color": "#ff3c64",
                     }
                 )
-
-                if len(all_tracks) >= count:
-                    break
+                added_for_query += 1
 
         except Exception as e:
             logger.warning(f"YTMusic search failed for '{query}': {e}")
             continue
 
-    # Shuffle to mix results from different queries
+    # Shuffle to interleave tracks from different languages/queries
+    random.shuffle(all_tracks)
     if len(all_tracks) > track_count:
         all_tracks = all_tracks[:track_count]
 
-    # Re-number IDs after potential shuffle
+    # Re-number IDs after shuffle
     for i, track in enumerate(all_tracks):
         track["id"] = i + 1
 
