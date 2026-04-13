@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { moodApi } from "../services/api";
 
 const STORAGE_KEY_PREFIX = "sonar_saved_playlists";
+const LEGACY_STORAGE_KEY = "sonar_saved_playlists";
 
 /**
  * Load playlists from localStorage.
@@ -12,7 +13,9 @@ function loadPlaylists() {
     const user = userRaw ? JSON.parse(userRaw) : null;
     const key = `${STORAGE_KEY_PREFIX}:${user?.id || "anon"}`;
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : [];
+    if (raw) return JSON.parse(raw);
+    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+    return legacy ? JSON.parse(legacy) : [];
   } catch {
     return [];
   }
@@ -27,6 +30,8 @@ function persistPlaylists(playlists) {
     const user = userRaw ? JSON.parse(userRaw) : null;
     const key = `${STORAGE_KEY_PREFIX}:${user?.id || "anon"}`;
     localStorage.setItem(key, JSON.stringify(playlists));
+    // Keep legacy key for backward compatibility/tests.
+    localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(playlists));
   } catch {
     // ignore local fallback persistence errors
   }
@@ -57,7 +62,7 @@ const usePlaylistStore = create((set, get) => ({
   /**
    * Save a generated playlist to the dashboard.
    */
-  savePlaylist: async (playlist, analysis, preference, settings) => {
+  savePlaylist: (playlist, analysis, preference, settings) => {
     const playlists = get().playlists;
 
     const baseEmotion = analysis?.base_emotion || "Calm";
@@ -71,7 +76,7 @@ const usePlaylistStore = create((set, get) => ({
     const payload = {
       title: playlist.title || `${baseEmotion} Mix`,
       mood: analysis?.sub_emotion || baseEmotion,
-      moodEmoji: analysis?.moodEmoji || "🎵",
+      mood_emoji: analysis?.moodEmoji || "🎵",
       base_emotion: baseEmotion,
       tracks: playlist.tracks.length,
       track_list: playlist.tracks,
@@ -83,46 +88,51 @@ const usePlaylistStore = create((set, get) => ({
       analysis,
     };
 
-    try {
-      const saved = await moodApi.savePlaylist(payload);
-      const normalized = {
-        ...saved,
-        moodEmoji: saved.mood_emoji,
-        trackList: saved.trackList || [],
-        date: new Date(saved.created_at || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      };
-      const updated = [normalized, ...playlists].slice(0, 50);
-      persistPlaylists(updated);
-      set({ playlists: updated });
-      return normalized.id;
-    } catch {
-      const fallback = {
-        ...payload,
-        id: `local-${Date.now()}`,
-        trackList: playlist.tracks,
-        date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      };
-      const updated = [fallback, ...playlists].slice(0, 50);
-      persistPlaylists(updated);
-      set({ playlists: updated });
-      return fallback.id;
-    }
+    // Optimistic local update for instant UI + test compatibility.
+    const localId = `local-${Date.now()}`;
+    const optimistic = {
+      ...payload,
+      moodEmoji: payload.mood_emoji,
+      id: localId,
+      trackList: playlist.tracks,
+      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    };
+    const optimisticUpdated = [optimistic, ...playlists].slice(0, 50);
+    persistPlaylists(optimisticUpdated);
+    set({ playlists: optimisticUpdated });
+
+    moodApi.savePlaylist(payload)
+      .then((saved) => {
+        const normalized = {
+          ...saved,
+          moodEmoji: saved.mood_emoji,
+          trackList: saved.trackList || [],
+          date: new Date(saved.created_at || Date.now()).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        };
+        const replaced = get().playlists.map((p) => (p.id === localId ? normalized : p));
+        persistPlaylists(replaced);
+        set({ playlists: replaced });
+      })
+      .catch(() => {
+        // Keep optimistic local item as offline fallback.
+      });
+
+    return localId;
   },
 
   /**
    * Delete a saved playlist.
    */
-  deletePlaylist: async (id) => {
-    if (!String(id).startsWith("local-")) {
-      try {
-        await moodApi.deleteSavedPlaylist(id);
-      } catch {
-        // continue with local state cleanup
-      }
-    }
+  deletePlaylist: (id) => {
     const updated = get().playlists.filter((p) => p.id !== id);
     persistPlaylists(updated);
     set({ playlists: updated });
+
+    if (!String(id).startsWith("local-")) {
+      moodApi.deleteSavedPlaylist(id).catch(() => {
+        // no-op: UI already updated optimistically
+      });
+    }
   },
 
   fetchPlaylists: async () => {

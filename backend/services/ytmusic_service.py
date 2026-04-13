@@ -153,7 +153,7 @@ def _matches_language_hint(track: dict, languages: list[str] | None) -> bool:
     if not languages:
         return False
     hint = _normalize(track.get("_language_hint", ""))
-    return hint in {_normalize(l) for l in languages}
+    return hint in {_normalize(lang) for lang in languages}
 
 
 def _select_tracks(
