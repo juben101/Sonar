@@ -74,7 +74,7 @@ def _build_search_queries(
     languages: list[str] | None = None,
     artists: list[str] | None = None,
     track_count: int = 15,
-) -> list[tuple[str, int]]:
+) -> list[dict]:
     """
     Build a list of (query, count) tuples for diverse search results.
 
@@ -84,7 +84,7 @@ def _build_search_queries(
     random.shuffle(keywords)
 
     langs = languages or ["English"]
-    raw_queries = []
+    raw_queries: list[dict] = []
 
     # ── Per-language queries ──
     for lang in langs:
@@ -92,34 +92,125 @@ def _build_search_queries(
 
         # 1-2 keyword+genre queries per language
         for kw in keywords[:2]:
-            raw_queries.append(f"{genre} {kw}{lang_tag} songs")
+            raw_queries.append(
+                {
+                    "query": f"{genre} {kw}{lang_tag} songs",
+                    "language": lang,
+                    "artist": None,
+                }
+            )
 
         # Sub-emotion query per language
         if sub_emotion and sub_emotion in _SUB_EMOTION_KEYWORDS:
             raw_queries.append(
-                f"{genre} {_SUB_EMOTION_KEYWORDS[sub_emotion]}{lang_tag}"
+                {
+                    "query": f"{genre} {_SUB_EMOTION_KEYWORDS[sub_emotion]}{lang_tag}",
+                    "language": lang,
+                    "artist": None,
+                }
             )
 
     # ── Per-artist queries (ALL artists) ──
     if artists:
         for artist in artists:
-            raw_queries.append(f"{artist} {genre}")
+            raw_queries.append(
+                {
+                    "query": f"{artist} {genre}",
+                    "language": None,
+                    "artist": artist,
+                }
+            )
 
     # Fallback
     if not raw_queries:
-        raw_queries = [f"{genre} {base_emotion} mood songs"]
+        raw_queries = [{"query": f"{genre} {base_emotion} mood songs", "language": None, "artist": None}]
 
     # ── Distribute track_count evenly across queries ──
-    per_query = max(2, track_count // len(raw_queries))
-    remainder = track_count - (per_query * len(raw_queries))
+    per_query = max(1, track_count // len(raw_queries))
+    remainder = track_count % len(raw_queries)
 
     result = []
     for i, q in enumerate(raw_queries):
         count = per_query + (1 if i < remainder else 0)
         if count > 0:
-            result.append((q, count))
+            result.append({**q, "count": count})
 
     return result
+
+
+def _normalize(text: str) -> str:
+    return (text or "").strip().lower()
+
+
+def _matches_any_artist(track_artist: str, artists: list[str] | None) -> bool:
+    if not artists:
+        return False
+    ta = _normalize(track_artist)
+    return any(_normalize(a) in ta for a in artists if a)
+
+
+def _matches_language_hint(track: dict, languages: list[str] | None) -> bool:
+    if not languages:
+        return False
+    hint = _normalize(track.get("_language_hint", ""))
+    return hint in {_normalize(l) for l in languages}
+
+
+def _select_tracks(
+    candidates: list[dict],
+    track_count: int,
+    languages: list[str] | None,
+    artists: list[str] | None,
+    match_mode: str,
+) -> list[dict]:
+    """
+    Hybrid selection strategy.
+    - smart: guarantee baseline representation for selected artists/languages, then fill by quality/diversity
+    - strict: strongly filter to tracks matching selected artist/language hints first
+    """
+    selected: list[dict] = []
+    selected_ids: set[str] = set()
+
+    random.shuffle(candidates)
+
+    def add_track(track: dict) -> None:
+        vid = track.get("video_id")
+        if not vid or vid in selected_ids or len(selected) >= track_count:
+            return
+        selected.append(track)
+        selected_ids.add(vid)
+
+    if artists:
+        for artist in artists:
+            for track in candidates:
+                if _matches_any_artist(track.get("_artist_raw", ""), [artist]):
+                    add_track(track)
+                    break
+
+    if languages:
+        for lang in languages:
+            for track in candidates:
+                if _normalize(track.get("_language_hint", "")) == _normalize(lang):
+                    add_track(track)
+                    break
+
+    if match_mode == "strict":
+        constrained_pool = [
+            t
+            for t in candidates
+            if _matches_any_artist(t.get("_artist_raw", ""), artists)
+            or _matches_language_hint(t, languages)
+        ]
+        for track in constrained_pool:
+            add_track(track)
+        if len(selected) < track_count:
+            for track in candidates:
+                add_track(track)
+    else:
+        for track in candidates:
+            add_track(track)
+
+    return selected[:track_count]
 
 
 def _format_duration(duration_seconds: int) -> str:
@@ -153,6 +244,7 @@ async def get_recommendations(
     genre: str,
     languages: list[str] | None = None,
     artists: list[str] | None = None,
+    match_mode: str = "smart",
     intensity: int = 50,
     track_count: int = 15,
     preference: str = "match",
@@ -179,7 +271,9 @@ async def get_recommendations(
     all_tracks = []
     seen_ids = set()
 
-    for query, count in queries:
+    for query_meta in queries:
+        query = query_meta["query"]
+        count = query_meta["count"]
         try:
             # Run search in thread pool (ytmusicapi is synchronous)
             results = await asyncio.to_thread(
@@ -223,6 +317,8 @@ async def get_recommendations(
                         "video_id": video_id,
                         "youtube_url": f"https://music.youtube.com/watch?v={video_id}",
                         "color": "#ff3c64",
+                        "_artist_raw": artist_names,
+                        "_language_hint": query_meta.get("language") or "",
                     }
                 )
                 added_for_query += 1
@@ -231,10 +327,18 @@ async def get_recommendations(
             logger.warning(f"YTMusic search failed for '{query}': {e}")
             continue
 
-    # Shuffle to interleave tracks from different languages/queries
-    random.shuffle(all_tracks)
-    if len(all_tracks) > track_count:
-        all_tracks = all_tracks[:track_count]
+    all_tracks = _select_tracks(
+        candidates=all_tracks,
+        track_count=track_count,
+        languages=languages,
+        artists=artists,
+        match_mode=match_mode,
+    )
+
+    # Remove internal helper fields before response
+    for track in all_tracks:
+        track.pop("_artist_raw", None)
+        track.pop("_language_hint", None)
 
     # Re-number IDs after shuffle
     for i, track in enumerate(all_tracks):

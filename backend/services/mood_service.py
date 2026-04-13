@@ -53,6 +53,7 @@ async def generate_playlist(
     preference: str = "match",
     languages: list[str] | None = None,
     artists: list[str] | None = None,
+    match_mode: str = "smart",
     intensity: int = 50,
     track_count: int = 15,
     genre: str = "pop",
@@ -64,6 +65,7 @@ async def generate_playlist(
         genre=genre,
         languages=languages,
         artists=artists,
+        match_mode=match_mode,
         intensity=intensity,
         track_count=track_count,
         preference=preference,
@@ -81,6 +83,7 @@ async def generate_playlist(
         preference=preference,
         languages=languages,
         artists=artists,
+        match_mode=match_mode,
         intensity=intensity,
         track_count=len(tracks),
     )
@@ -94,6 +97,7 @@ def _build_playlist_reason(
     preference: str,
     languages: list[str] | None,
     artists: list[str] | None,
+    match_mode: str,
     intensity: int,
     track_count: int,
 ) -> str:
@@ -142,7 +146,14 @@ def _build_playlist_reason(
             artist_str = ", ".join(artists)
         else:
             artist_str = ", ".join(artists[:3]) + f" and {len(artists) - 3} more"
-        parts.append(f"We prioritized tracks from or similar to {artist_str}.")
+        verb = "strictly matched" if match_mode == "strict" else "prioritized tracks from or similar to"
+        parts.append(f"We {verb} {artist_str}.")
+
+    if languages:
+        if match_mode == "strict":
+            parts.append("Strict matching was enabled, so we favored exact language/artist alignment over diversity.")
+        else:
+            parts.append("Smart matching was enabled to balance your selections with better discovery and track quality.")
 
     return " ".join(parts)
 

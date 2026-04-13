@@ -450,6 +450,37 @@
   margin-top: 8px;
 }
 
+.rp-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.rp-mode-btn {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.5);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rp-mode-btn:hover {
+  border-color: rgba(255, 60, 100, 0.25);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.rp-mode-btn--active {
+  border-color: rgba(255, 60, 100, 0.45);
+  background: rgba(255, 60, 100, 0.12);
+  color: #ff88a3;
+  box-shadow: 0 8px 24px rgba(255, 60, 100, 0.12);
+}
+
 /* ── Dropdown ── */
 .rp-dropdown {
   position: relative;

@@ -303,6 +303,7 @@ async def get_playlist(
         body.preference,
         languages=body.languages,
         artists=body.artists,
+        match_mode=body.match_mode,
         intensity=body.intensity,
         track_count=body.track_count,
         genre=body.genre,

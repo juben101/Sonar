@@ -155,9 +155,9 @@ export const moodApi = {
     });
   },
 
-  playlist: (dimensions, preference, languages = [], artists = [], intensity = 50, track_count = 15, genre = "pop", base_emotion = "Calm") =>
+  playlist: (dimensions, preference, languages = [], artists = [], match_mode = "smart", intensity = 50, track_count = 15, genre = "pop", base_emotion = "Calm") =>
     api.post("/v1/mood/playlist", {
-      dimensions, preference, languages, artists, intensity, track_count, genre, base_emotion,
+      dimensions, preference, languages, artists, match_mode, intensity, track_count, genre, base_emotion,
     }),
 
   history: (days = 30, limit = 50) =>

@@ -107,6 +107,7 @@ class PlaylistRequest(BaseModel):
     track_count: int = Field(default=15, ge=2, le=50)
     genre: str = Field(default="pop")
     base_emotion: str = Field(default="Calm")
+    match_mode: str = Field(default="smart", pattern=r"^(smart|strict)$")
 
 
 class TrackResponse(BaseModel):
