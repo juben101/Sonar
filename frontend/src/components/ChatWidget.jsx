@@ -10,6 +10,30 @@ const INITIAL_MESSAGE = {
     "hey 👋 i'm your sonar companion — i can see your emotional journey here and i'm around whenever you wanna chat, vent, or just think out loud. how are you doing?",
 };
 
+function BotGlyph({ size = 22 }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="4.5" y="8" width="15" height="10" rx="4" />
+      <path d="M12 4.5v2.2" />
+      <circle cx="9" cy="12.8" r="0.8" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="12.8" r="0.8" fill="currentColor" stroke="none" />
+      <path d="M9.5 15.3h5" />
+      <path d="M7.2 18v1.2" />
+      <path d="M16.8 18v1.2" />
+    </svg>
+  );
+}
+
 export default function ChatWidget() {
   const { accessToken } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
@@ -170,9 +194,7 @@ export default function ChatWidget() {
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         ) : (
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-          </svg>
+          <BotGlyph size={30} />
         )}
         {hasUnread && <span className="chat-fab-badge" />}
       </button>
@@ -184,7 +206,7 @@ export default function ChatWidget() {
           <div className="chat-header">
             <div className="chat-header-left">
               <div className="chat-header-avatar">
-                <span>🧠</span>
+                <BotGlyph size={18} />
                 <span className="chat-header-status" />
               </div>
               <div className="chat-header-info">
@@ -217,7 +239,7 @@ export default function ChatWidget() {
                   className={`chat-msg ${msg.role === "user" ? "chat-msg--user" : "chat-msg--bot"}`}
                 >
                   {msg.role === "assistant" && (
-                    <div className="chat-msg-avatar">🧠</div>
+                    <div className="chat-msg-avatar"><BotGlyph size={14} /></div>
                   )}
                   <div className={`chat-msg-bubble ${isEmptyStreaming ? "chat-msg-bubble--typing" : ""}`}>
                     {isEmptyStreaming ? (

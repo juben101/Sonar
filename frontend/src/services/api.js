@@ -155,9 +155,9 @@ export const moodApi = {
     });
   },
 
-  playlist: (dimensions, preference, languages = [], artists = [], intensity = 50, track_count = 15, genre = "pop", base_emotion = "Calm") =>
+  playlist: (dimensions, preference, languages = [], artists = [], match_mode = "smart", intensity = 50, track_count = 15, genre = "pop", base_emotion = "Calm") =>
     api.post("/v1/mood/playlist", {
-      dimensions, preference, languages, artists, intensity, track_count, genre, base_emotion,
+      dimensions, preference, languages, artists, match_mode, intensity, track_count, genre, base_emotion,
     }),
 
   history: (days = 30, limit = 50) =>
@@ -184,6 +184,16 @@ export const moodApi = {
   // Audio stream (on-demand extraction)
   getStream: (videoId) =>
     api.get(`/v1/mood/stream/${encodeURIComponent(videoId)}`),
+
+  // Saved playlists (cross-device)
+  getSavedPlaylists: () =>
+    api.get("/v1/mood/playlists"),
+
+  savePlaylist: (payload) =>
+    api.post("/v1/mood/playlists", payload),
+
+  deleteSavedPlaylist: (playlistId) =>
+    api.delete(`/v1/mood/playlists/${encodeURIComponent(playlistId)}`),
 };
 
 // Chat API

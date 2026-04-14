@@ -218,6 +218,27 @@ export default function PlaylistPage() {
   if (!data?.playlist) return null;
 
   const { playlist, analysis, preference, settings } = data;
+  const selectedArtists = settings?.artists || [];
+  const selectedLanguages = settings?.languages || [];
+  const matchMode = settings?.matchMode || "smart";
+
+  const normalizedSelectedArtists = selectedArtists.map((a) => a.toLowerCase());
+  const tracksMatchingSelectedArtists = playlist.tracks.filter((track) =>
+    normalizedSelectedArtists.some((artist) => track.artist.toLowerCase().includes(artist))
+  );
+
+  const representedArtists = selectedArtists.filter((artist) =>
+    playlist.tracks.some((track) => track.artist.toLowerCase().includes(artist.toLowerCase()))
+  );
+
+  const artistLangMap = settings?.artistLangMap || {};
+  const representedLanguages = Array.from(
+    new Set(
+      representedArtists
+        .map((artist) => artistLangMap[artist])
+        .filter(Boolean)
+    )
+  );
 
   const playingTrack = playingId
     ? playlist.tracks.find((t) => t.id === playingId)
@@ -476,6 +497,47 @@ export default function PlaylistPage() {
               <p className="pl-reason-text">{playlist.playlist_reason}</p>
             </section>
           )}
+
+          {/* ── Match Summary ── */}
+          <section className="pl-match-section">
+            <div className="pl-match-header">
+              <span className="pl-match-badge">MATCH SUMMARY</span>
+              <span className={`pl-match-mode pl-match-mode--${matchMode}`}>
+                {matchMode === "strict" ? "Strict mode" : "Smart mode"}
+              </span>
+            </div>
+
+            <div className="pl-match-grid">
+              <div className="pl-match-item">
+                <span className="pl-match-label">Artists represented</span>
+                <span className="pl-match-value">
+                  {selectedArtists.length > 0
+                    ? `${representedArtists.length}/${selectedArtists.length}`
+                    : "No artist filter"}
+                </span>
+              </div>
+              <div className="pl-match-item">
+                <span className="pl-match-label">Tracks matching selected artists</span>
+                <span className="pl-match-value">
+                  {selectedArtists.length > 0
+                    ? `${tracksMatchingSelectedArtists.length}/${playlist.tracks.length}`
+                    : "Not applicable"}
+                </span>
+              </div>
+              <div className="pl-match-item">
+                <span className="pl-match-label">Requested languages covered</span>
+                <span className="pl-match-value">
+                  {selectedLanguages.length > 0 && Object.keys(artistLangMap).length > 0
+                    ? `${representedLanguages.length}/${selectedLanguages.length}`
+                    : `${selectedLanguages.length} selected`}
+                </span>
+              </div>
+            </div>
+
+            <p className="pl-match-note">
+              Language-level verification depends on provider metadata. Artist match metrics are exact based on selected artist names.
+            </p>
+          </section>
 
           {/* ── Track List ── */}
           <section className="pl-tracklist">

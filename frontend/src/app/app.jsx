@@ -46,6 +46,15 @@ const queryClient = new QueryClient({
   },
 });
 
+function ProtectedPage({ children }) {
+  return (
+    <ProtectedRoute>
+      {children}
+      <ChatWidget />
+    </ProtectedRoute>
+  );
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -69,15 +78,14 @@ export default function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<AuthPage />} />
-            <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-            <Route path="/analyze" element={<ProtectedRoute><AnalyzePage /></ProtectedRoute>} />
-            <Route path="/result" element={<ProtectedRoute><ResultPage /></ProtectedRoute>} />
-            <Route path="/playlist" element={<ProtectedRoute><PlaylistPage /></ProtectedRoute>} />
-            <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedPage><DashboardPage /></ProtectedPage>} />
+            <Route path="/analyze" element={<ProtectedPage><AnalyzePage /></ProtectedPage>} />
+            <Route path="/result" element={<ProtectedPage><ResultPage /></ProtectedPage>} />
+            <Route path="/playlist" element={<ProtectedPage><PlaylistPage /></ProtectedPage>} />
+            <Route path="/history" element={<ProtectedPage><HistoryPage /></ProtectedPage>} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Suspense>
-        <ChatWidget />
       </BrowserRouter>
     </QueryClientProvider>
   );

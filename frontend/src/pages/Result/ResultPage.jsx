@@ -38,6 +38,7 @@ export default function ResultPage() {
   const [preference, setPreference] = useState(null); // "match" | "uplift"
   const [languages, setLanguages] = useState(["English"]);
   const [selectedArtists, setSelectedArtists] = useState([]);
+  const [matchMode, setMatchMode] = useState("smart"); // "smart" | "strict"
   const [intensity, setIntensity] = useState(50);
   const [trackCount, setTrackCount] = useState(15);
   const [generating, setGenerating] = useState(false);
@@ -106,6 +107,18 @@ export default function ResultPage() {
     );
   };
 
+  const getArtistLangMap = () => {
+    const map = {};
+    for (const lang of languages) {
+      for (const artist of ARTISTS_BY_LANGUAGE[lang] || []) {
+        if (selectedArtists.includes(artist)) {
+          map[artist] = lang;
+        }
+      }
+    }
+    return map;
+  };
+
   const handleGenerate = async () => {
     if (languages.length === 0) return;
     setGenerating(true);
@@ -116,6 +129,7 @@ export default function ResultPage() {
         preference,
         languages,
         selectedArtists,
+        matchMode,
         intensity,
         trackCount,
         analysisData.genre,
@@ -127,7 +141,14 @@ export default function ResultPage() {
           playlist: data,
           analysis: analysisData,
           preference,
-          settings: { languages, artists: selectedArtists, intensity, trackCount },
+          settings: {
+            languages,
+            artists: selectedArtists,
+            artistLangMap: getArtistLangMap(),
+            matchMode,
+            intensity,
+            trackCount,
+          },
         },
       });
     } catch {
@@ -137,7 +158,14 @@ export default function ResultPage() {
           playlist: { title: "Sonar Mix", tracks: [] },
           analysis: analysisData,
           preference,
-          settings: { languages, artists: [], intensity, trackCount },
+          settings: {
+            languages,
+            artists: [],
+            artistLangMap: {},
+            matchMode,
+            intensity,
+            trackCount,
+          },
         },
       });
     } finally {
@@ -401,6 +429,32 @@ export default function ResultPage() {
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* Intensity Slider */}
+              <div className="rp-field">
+                <label className="rp-field-label">Matching mode</label>
+                <div className="rp-mode-toggle">
+                  <button
+                    type="button"
+                    className={`rp-mode-btn ${matchMode === "smart" ? "rp-mode-btn--active" : ""}`}
+                    onClick={() => setMatchMode("smart")}
+                  >
+                    Smart
+                  </button>
+                  <button
+                    type="button"
+                    className={`rp-mode-btn ${matchMode === "strict" ? "rp-mode-btn--active" : ""}`}
+                    onClick={() => setMatchMode("strict")}
+                  >
+                    Strict
+                  </button>
+                </div>
+                <span className="rp-field-hint">
+                  {matchMode === "smart"
+                    ? "Balances your selected artists/languages with better discovery."
+                    : "Prioritizes exact artist/language matches first, then fills remaining tracks if needed."}
+                </span>
               </div>
 
               {/* Intensity Slider */}

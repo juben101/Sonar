@@ -11,6 +11,7 @@ from database import get_db
 from dependencies.auth import get_current_user
 from limiter import limiter
 from models.mood_entry import MoodEntry
+from models.saved_playlist import SavedPlaylist
 from models.song_preference import SongPreference
 from models.user import User
 from schemas import (
@@ -20,6 +21,8 @@ from schemas import (
     MoodStatsResponse,
     PlaylistRequest,
     PlaylistResponse,
+    SavedPlaylistCreateRequest,
+    SavedPlaylistResponse,
     SongPreferenceBatchResponse,
     SongPreferenceRequest,
     SongPreferenceResponse,
@@ -303,6 +306,7 @@ async def get_playlist(
         body.preference,
         languages=body.languages,
         artists=body.artists,
+        match_mode=body.match_mode,
         intensity=body.intensity,
         track_count=body.track_count,
         genre=body.genre,
@@ -326,6 +330,108 @@ async def get_stream(
         from fastapi import HTTPException
 
         raise HTTPException(status_code=502, detail=f"Could not extract audio: {e}")
+
+
+@router.get("/playlists", response_model=list[SavedPlaylistResponse])
+@limiter.limit("30/minute")
+async def get_saved_playlists(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[SavedPlaylistResponse]:
+    """Get saved playlists for current user."""
+    result = await db.execute(
+        select(SavedPlaylist)
+        .where(SavedPlaylist.user_id == current_user.id)
+        .order_by(SavedPlaylist.created_at.desc())
+    )
+    rows = result.scalars().all()
+    return [
+        SavedPlaylistResponse(
+            id=row.id,
+            title=row.title,
+            mood=row.mood,
+            mood_emoji=row.mood_emoji,
+            base_emotion=row.base_emotion,
+            tracks=int(row.tracks_count or 0),
+            trackList=row.track_list or [],
+            duration=row.duration,
+            gradient=row.gradient,
+            accent=row.accent,
+            preference=row.preference,
+            settings=row.settings or {},
+            analysis=row.analysis or {},
+            created_at=row.created_at.isoformat() if row.created_at else "",
+        )
+        for row in rows
+    ]
+
+
+@router.post("/playlists", response_model=SavedPlaylistResponse)
+@limiter.limit("30/minute")
+async def save_playlist(
+    request: Request,
+    body: SavedPlaylistCreateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SavedPlaylistResponse:
+    """Save generated playlist for current user (cross-device sync)."""
+    row = SavedPlaylist(
+        user_id=current_user.id,
+        title=body.title,
+        mood=body.mood,
+        mood_emoji=body.mood_emoji,
+        base_emotion=body.base_emotion,
+        tracks_count=body.tracks,
+        track_list=body.track_list,
+        duration=body.duration,
+        gradient=body.gradient,
+        accent=body.accent,
+        preference=body.preference,
+        settings=body.settings,
+        analysis=body.analysis,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return SavedPlaylistResponse(
+        id=row.id,
+        title=row.title,
+        mood=row.mood,
+        mood_emoji=row.mood_emoji,
+        base_emotion=row.base_emotion,
+        tracks=int(row.tracks_count or 0),
+        trackList=row.track_list or [],
+        duration=row.duration,
+        gradient=row.gradient,
+        accent=row.accent,
+        preference=row.preference,
+        settings=row.settings or {},
+        analysis=row.analysis or {},
+        created_at=row.created_at.isoformat() if row.created_at else "",
+    )
+
+
+@router.delete("/playlists/{playlist_id}")
+@limiter.limit("30/minute")
+async def delete_saved_playlist(
+    request: Request,
+    playlist_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a saved playlist owned by current user."""
+    result = await db.execute(
+        select(SavedPlaylist).where(
+            SavedPlaylist.id == playlist_id,
+            SavedPlaylist.user_id == current_user.id,
+        )
+    )
+    row = result.scalar_one_or_none()
+    if row:
+        await db.delete(row)
+        await db.commit()
+    return {"status": "ok"}
 
 
 # ══════════════════════════════════════
@@ -406,7 +512,16 @@ async def get_song_preferences(
     current_user: User = Depends(get_current_user),
 ) -> SongPreferenceBatchResponse:
     """Get preferences for a batch of song keys. Body: {"song_keys": [...]}"""
-    song_keys = body.get("song_keys", [])
+    raw_song_keys = body.get("song_keys", [])
+    if not isinstance(raw_song_keys, list):
+        return SongPreferenceBatchResponse(preferences={})
+
+    # Defensive normalization to prevent DB errors from malformed payloads.
+    song_keys = [
+        str(k).strip()[:255]
+        for k in raw_song_keys
+        if isinstance(k, str) and str(k).strip()
+    ]
     if not song_keys:
         return SongPreferenceBatchResponse(preferences={})
 

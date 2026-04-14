@@ -16,6 +16,7 @@ from models.user import User  # noqa: E402, F401
 from models.token import RefreshToken  # noqa: E402, F401
 from models.mood_entry import MoodEntry  # noqa: E402, F401
 from models.song_preference import SongPreference  # noqa: E402, F401
+from models.saved_playlist import SavedPlaylist  # noqa: E402, F401
 
 target_metadata = Base.metadata
 

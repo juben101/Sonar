@@ -107,6 +107,7 @@ class PlaylistRequest(BaseModel):
     track_count: int = Field(default=15, ge=2, le=50)
     genre: str = Field(default="pop")
     base_emotion: str = Field(default="Calm")
+    match_mode: str = Field(default="smart", pattern=r"^(smart|strict)$")
 
 
 class TrackResponse(BaseModel):
@@ -124,6 +125,38 @@ class PlaylistResponse(BaseModel):
     title: str
     tracks: list[TrackResponse]
     playlist_reason: str = ""
+
+
+class SavedPlaylistCreateRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    mood: str = Field(default="")
+    mood_emoji: str = Field(default="")
+    base_emotion: str = Field(default="")
+    tracks: int = Field(default=0, ge=0, le=200)
+    track_list: list[dict] = Field(default_factory=list)
+    duration: str = Field(default="")
+    gradient: str = Field(default="")
+    accent: str = Field(default="")
+    preference: str = Field(default="match")
+    settings: dict = Field(default_factory=dict)
+    analysis: dict = Field(default_factory=dict)
+
+
+class SavedPlaylistResponse(BaseModel):
+    id: str
+    title: str
+    mood: str
+    mood_emoji: str
+    base_emotion: str
+    tracks: int
+    trackList: list[dict]
+    duration: str
+    gradient: str
+    accent: str
+    preference: str
+    settings: dict
+    analysis: dict
+    created_at: str
 
 
 # ── Mood history schemas ──
