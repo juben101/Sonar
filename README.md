@@ -183,7 +183,6 @@ Dual-level explanations surface both **why an emotion was detected** (SHAP-based
 | **Voice** | Deepgram Nova-2 (primary), AssemblyAI (fallback) |
 | **Weather** | OpenWeatherMap API |
 | **Styling** | Vanilla CSS, glassmorphism, micro-animations, react-snowfall |
-| **AI Chat** | NVIDIA NIM (primary), Groq (fallback), Together AI (fallback) |
 | **Testing** | pytest + respx (backend), Vitest + Testing Library (frontend) |
 | **Linting** | ruff (Python), ESLint (JavaScript) |
 | **Deployment** | AWS — S3 + CloudFront (frontend), EC2 (backend), RDS PostgreSQL (database) |
