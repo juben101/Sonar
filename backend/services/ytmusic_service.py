@@ -357,14 +357,6 @@ async def get_recommendations(
     return all_tracks
 
 
-async def get_audio_stream_url(video_id: str) -> str:
-    """
-    Extract the best audio stream URL for a YouTube video using yt-dlp.
-
-    Returns a direct audio URL that can be played with new Audio().
-    URLs are temporary (~6 hours) and should be fetched on-demand.
-    """
-    import yt_dlp
 import time
 from typing import Dict, Tuple
 
@@ -410,6 +402,7 @@ async def get_audio_stream_url(video_id: str) -> str:
     URLs are temporary (~6 hours) and should be fetched on-demand.
     """
     import asyncio
+    import yt_dlp
     
     url_candidates = [
         f"https://www.youtube.com/watch?v={video_id}",
