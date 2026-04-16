@@ -1,7 +1,9 @@
 from datetime import datetime, timezone
 import base64
+from io import BytesIO
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
+from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from schemas import (
@@ -218,7 +220,7 @@ async def upload_avatar(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> UserResponse:
-    """Upload user avatar image. Stored as base64 data URL."""
+    """Upload avatar image, resize to 200x200, and store as base64 data URL."""
     # Validate file type
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(
@@ -234,9 +236,25 @@ async def upload_avatar(
             detail="Image must be smaller than 2MB",
         )
 
-    # Convert to base64 data URL
-    b64 = base64.b64encode(contents).decode("utf-8")
-    data_url = f"data:{file.content_type};base64,{b64}"
+    try:
+        with Image.open(BytesIO(contents)) as img:
+            # Keep a consistent square avatar regardless of source dimensions.
+            fitted = ImageOps.fit(img, (200, 200), method=Image.Resampling.LANCZOS)
+            if fitted.mode not in ("RGB",):
+                fitted = fitted.convert("RGB")
+
+            out = BytesIO()
+            fitted.save(out, format="JPEG", quality=85, optimize=True)
+            processed = out.getvalue()
+    except UnidentifiedImageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid image file",
+        ) from exc
+
+    # Convert processed image to base64 data URL
+    b64 = base64.b64encode(processed).decode("utf-8")
+    data_url = f"data:image/jpeg;base64,{b64}"
 
     current_user.avatar_url = data_url
     await db.commit()
