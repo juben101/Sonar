@@ -512,6 +512,19 @@ async def get_audio_stream_url(video_id: str) -> str:
             },
         ])
     
+    # OAuth2 is causing 400 errors, skip for now
+    # TODO: Fix OAuth2 token refresh issue later
+    
+    # Add simple working option set as primary
+    option_sets.insert(0, {
+        **base_opts,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["web"],
+            }
+        },
+    })
+    
     # Always add no-cookie fallbacks
     option_sets.extend([
         # Android only without cookies
@@ -546,16 +559,25 @@ async def get_audio_stream_url(video_id: str) -> str:
             signal.signal(signal.SIGALRM, timeout_handler)
             signal.alarm(8)  # 8 second timeout per attempt
             
+            logger.info(f"Attempting extraction for {video_id} with opts: {opts}")
+            
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
                 audio_url = info.get("url", "")
                 if audio_url:
+                    logger.info(f"Successfully extracted {video_id}")
                     return audio_url
+                else:
+                    logger.warning(f"No audio URL found for {video_id}")
+                    return ""
         except TimeoutError:
             logger.warning(f"yt-dlp timeout for {video_id}")
             return ""
         except Exception as err:
-            logger.warning(f"yt-dlp extraction failed for {video_id}: {str(err)[:100]}")
+            # Log the full error, not truncated
+            logger.error(f"yt-dlp extraction failed for {video_id}: {str(err)}")
+            logger.error(f"Full error details: {repr(err)}")
+            logger.error(f"Error type: {type(err)}")
             return ""
         finally:
             signal.alarm(0)  # Cancel timeout
@@ -614,8 +636,10 @@ async def get_audio_stream_url(video_id: str) -> str:
             if result:
                 return result
         
-        # If all attempts failed, raise the last error
-        raise Exception("All extraction attempts failed or timed out")
+        # If all attempts failed, raise the last error with details
+        error_msg = f"All extraction attempts failed for {video_id}. Last error: {last_error}"
+        logger.error(error_msg)
+        raise Exception(error_msg)
 
     audio_url = await asyncio.to_thread(_extract)
 
