@@ -115,9 +115,6 @@ export default function DashboardPage() {
                   <span className="db-dropdown-icon">⚙️</span> Settings
                 </button>
                 <button className="db-dropdown-item">
-                  <span className="db-dropdown-icon">🎨</span> Appearance
-                </button>
-                <button className="db-dropdown-item">
                   <span className="db-dropdown-icon">🔔</span> Notifications
                 </button>
                 <button className="db-dropdown-item">
@@ -319,7 +316,6 @@ export default function DashboardPage() {
               <div className="db-modal-sidebar">
                 {[
                   { id: "account", icon: "👤", label: "Account" },
-                  { id: "appearance", icon: "🎨", label: "Appearance" },
                   { id: "notifications", icon: "🔔", label: "Notifications" },
                   { id: "privacy", icon: "🔒", label: "Privacy" },
                   { id: "audio", icon: "🎵", label: "Audio" },
@@ -357,25 +353,6 @@ export default function DashboardPage() {
                     <div className="db-settings-danger-zone">
                       <h4>Danger Zone</h4>
                       <button className="db-settings-delete">Delete Account</button>
-                    </div>
-                  </div>
-                )}
-                {activeSettingsTab === "appearance" && (
-                  <div className="db-settings-section">
-                    <h3>Appearance</h3>
-                    <p className="db-settings-desc">Customize how Sonar looks for you.</p>
-                    <div className="db-settings-field">
-                      <label>Theme</label>
-                      <div className="db-settings-theme-options">
-                        <div className="db-theme-option db-theme-option--active">
-                          <div className="db-theme-preview db-theme-preview--dark" />
-                          <span>Dark</span>
-                        </div>
-                        <div className="db-theme-option">
-                          <div className="db-theme-preview db-theme-preview--amoled" />
-                          <span>AMOLED</span>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 )}
