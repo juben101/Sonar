@@ -401,7 +401,7 @@ async def get_audio_stream_url(video_id: str) -> str:
             "extractor_args": {
                 "youtube": {
                     "player_client": ["android", "web", "ios", "mweb"],
-                    "po_token_ver": "2"
+                    "po_token_ver": "2",
                 }
             },
             "cookiesfrombrowser": ("chrome",),
@@ -409,10 +409,7 @@ async def get_audio_stream_url(video_id: str) -> str:
         {
             **base_opts,
             "extractor_args": {
-                "youtube": {
-                    "player_client": ["web"],
-                    "po_token_ver": "2"
-                }
+                "youtube": {"player_client": ["web"], "po_token_ver": "2"}
             },
         },
     ]
@@ -430,10 +427,12 @@ async def get_audio_stream_url(video_id: str) -> str:
                 except (
                     Exception
                 ) as err:  # pragma: no cover - network/extractor variability
-                    logger.warning(f"yt-dlp extraction failed for {video_id}: {str(err)[:100]}")
+                    logger.warning(
+                        f"yt-dlp extraction failed for {video_id}: {str(err)[:100]}"
+                    )
                     last_error = err
                     continue
-        
+
         # Final fallback with minimal options
         try:
             fallback_opts = {
@@ -450,9 +449,11 @@ async def get_audio_stream_url(video_id: str) -> str:
                 if audio_url:
                     return audio_url
         except Exception as fallback_err:
-            logger.error(f"yt-dlp fallback failed for {video_id}: {str(fallback_err)[:100]}")
+            logger.error(
+                f"yt-dlp fallback failed for {video_id}: {str(fallback_err)[:100]}"
+            )
             last_error = fallback_err
-        
+
         if last_error:
             raise last_error
         return ""
