@@ -30,7 +30,15 @@ class UserResponse(BaseModel):
 
     id: str
     username: str
+    email: str | None = None
+    avatar_url: str | None = None
+    username_changed_at: str | None = None
     created_at: str | None = None
+
+
+class ProfileUpdate(BaseModel):
+    username: str | None = None
+    email: str | None = None
 
 
 class AuthResponse(BaseModel):

@@ -1,5 +1,8 @@
-from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from datetime import datetime, timedelta, timezone
+import base64
+import logging
+from fastapi import APIRouter, Depends, HTTPException, status, Request, UploadFile, File
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from schemas import (
@@ -11,6 +14,7 @@ from schemas import (
     TokenRefreshResponse,
     UserResponse,
     MessageResponse,
+    ProfileUpdate,
 )
 from services.auth_service import (
     get_user_by_username,
@@ -27,6 +31,8 @@ from services.auth_service import (
 from dependencies.auth import get_current_user
 from models.user import User
 from limiter import limiter
+
+logger = logging.getLogger("sonar")
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -157,3 +163,100 @@ async def logout(
 async def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
     """Get the current authenticated user's profile."""
     return UserResponse(**current_user.to_dict())
+
+
+@router.put("/profile", response_model=UserResponse)
+async def update_profile(
+    body: ProfileUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> UserResponse:
+    """Update user profile (username with 30-day cooldown, email)."""
+    # Update email if provided
+    if body.email is not None:
+        current_user.email = body.email.strip() if body.email else None
+
+    # Update username if provided and different
+    if body.username and body.username != current_user.username:
+        new_username = body.username.strip()
+        if len(new_username) < 3 or len(new_username) > 50:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username must be between 3 and 50 characters",
+            )
+
+        # Check 30-day cooldown
+        if current_user.username_changed_at:
+            days_since = (
+                datetime.now(timezone.utc) - current_user.username_changed_at
+            ).days
+            if days_since < 30:
+                remaining = 30 - days_since
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Username can only be changed once every 30 days. {remaining} days remaining.",
+                )
+
+        # Check uniqueness
+        existing = await get_user_by_username(db, new_username)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Username already taken",
+            )
+
+        current_user.username = new_username
+        current_user.username_changed_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(current_user)
+    return UserResponse(**current_user.to_dict())
+
+
+@router.post("/avatar", response_model=UserResponse)
+async def upload_avatar(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> UserResponse:
+    """Upload user avatar image. Stored as base64 data URL."""
+    # Validate file type
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be an image",
+        )
+
+    # Read file (limit to 2MB)
+    contents = await file.read()
+    if len(contents) > 2 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Image must be smaller than 2MB",
+        )
+
+    # Convert to base64 data URL
+    b64 = base64.b64encode(contents).decode("utf-8")
+    data_url = f"data:{file.content_type};base64,{b64}"
+
+    current_user.avatar_url = data_url
+    await db.commit()
+    await db.refresh(current_user)
+    return UserResponse(**current_user.to_dict())
+
+
+@router.delete("/account", response_model=MessageResponse)
+async def delete_account(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MessageResponse:
+    """Permanently delete user account and all associated data."""
+    username = current_user.username
+    logger.info(f"Account deletion requested for user: {username} (id: {current_user.id})")
+
+    await db.delete(current_user)
+    await db.commit()
+
+    logger.info(f"Account deleted: {username}")
+    return MessageResponse(message="Account permanently deleted")
+

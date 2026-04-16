@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import Base
 
@@ -17,6 +17,11 @@ class User(Base):
         String(50), unique=True, index=True, nullable=False
     )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    username_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
@@ -37,5 +42,13 @@ class User(Base):
         return {
             "id": str(self.id),
             "username": self.username,
+            "email": self.email,
+            "avatar_url": self.avatar_url,
+            "username_changed_at": (
+                self.username_changed_at.isoformat()
+                if self.username_changed_at
+                else None
+            ),
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
