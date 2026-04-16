@@ -409,8 +409,43 @@ async def get_audio_stream_url(video_id: str) -> str:
         {
             **base_opts,
             "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "web", "ios", "mweb"],
+                    "po_token_ver": "2",
+                }
+            },
+            "cookiesfrombrowser": ("firefox",),
+        },
+        {
+            **base_opts,
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "web", "ios", "mweb"],
+                    "po_token_ver": "2",
+                }
+            },
+            "cookiesfrombrowser": ("safari",),
+        },
+        {
+            **base_opts,
+            "extractor_args": {
                 "youtube": {"player_client": ["web"], "po_token_ver": "2"}
             },
+            "cookiesfrombrowser": ("chrome",),
+        },
+        {
+            **base_opts,
+            "extractor_args": {
+                "youtube": {"player_client": ["android"], "po_token_ver": "2"}
+            },
+            "cookiesfrombrowser": ("chrome",),
+        },
+        {
+            **base_opts,
+            "extractor_args": {
+                "youtube": {"player_client": ["ios"], "po_token_ver": "2"}
+            },
+            "cookiesfrombrowser": ("chrome",),
         },
     ]
 
@@ -453,6 +488,29 @@ async def get_audio_stream_url(video_id: str) -> str:
                 f"yt-dlp fallback failed for {video_id}: {str(fallback_err)[:100]}"
             )
             last_error = fallback_err
+        
+        # Additional fallback: try without any authentication
+        try:
+            no_auth_opts = {
+                "format": "bestaudio/best",
+                "quiet": True,
+                "no_warnings": True,
+                "skip_download": True,
+                "noplaylist": True,
+                "extractor_args": {"youtube": {"player_client": ["android"]}},
+                "http_headers": {
+                    "User-Agent": "Mozilla/5.0 (Linux; Android 12; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Mobile Safari/537.36",
+                },
+            }
+            with yt_dlp.YoutubeDL(no_auth_opts) as ydl:
+                info = ydl.extract_info(url_candidates[0], download=False)
+                audio_url = info.get("url", "")
+                if audio_url:
+                    logger.info(f"yt-dlp: extracted audio stream for {video_id} using no-auth fallback")
+                    return audio_url
+        except Exception as no_auth_err:
+            logger.error(f"yt-dlp no-auth fallback failed for {video_id}: {str(no_auth_err)[:100]}")
+            last_error = no_auth_err
 
         if last_error:
             raise last_error
