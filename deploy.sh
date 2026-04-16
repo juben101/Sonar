@@ -6,12 +6,17 @@
 
 set -e
 
-# ── Configuration (update these after AWS setup) ──
+# ── Configuration ──
 S3_BUCKET="sonar-music-frontend-199702507675-ap-south-1-an"
 CLOUDFRONT_DIST_ID="EDZ362DZNB32Q"
 EC2_IP="13.204.145.132"
 EC2_KEY="$HOME/Downloads/Sonar-Key_EC2.pem"
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Ensure node/npm are in PATH (nvm or homebrew)
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh" 2>/dev/null
+export PATH="$HOME/.nvm/versions/node/$(ls "$HOME/.nvm/versions/node/" 2>/dev/null | sort -V | tail -1)/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -36,7 +41,8 @@ deploy_frontend() {
 
 deploy_backend() {
   echo -e "${CYAN}🚀 Deploying backend to EC2...${NC}"
-  ssh -i "$EC2_KEY" ec2-user@"$EC2_IP" << 'REMOTE'
+  ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
+    -i "$EC2_KEY" ec2-user@"$EC2_IP" << 'REMOTE'
     set -e
     cd /opt/sonar
     git pull origin main
