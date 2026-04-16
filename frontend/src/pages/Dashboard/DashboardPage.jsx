@@ -198,7 +198,16 @@ export default function DashboardPage() {
       setUser(updated);
       setProfileSuccess("Avatar updated.");
     } catch (err) {
-      setProfileError(err.message || "Failed to upload avatar.");
+      const message = err.message || "";
+      if (message.includes("Processed avatar is too large")) {
+        setProfileError("That image is too complex after processing. Try a simpler photo or screenshot.");
+      } else if (message.includes("Image must be smaller than 2MB")) {
+        setProfileError("Please upload an image smaller than 2MB.");
+      } else if (message.includes("File must be an image") || message.includes("Invalid image file")) {
+        setProfileError("Please choose a valid image file.");
+      } else {
+        setProfileError("Failed to upload avatar. Please try again.");
+      }
     } finally {
       setIsUploadingAvatar(false);
       event.target.value = "";

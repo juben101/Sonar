@@ -34,6 +34,7 @@ from models.user import User
 from limiter import limiter
 
 logger = logging.getLogger("sonar")
+MAX_PROCESSED_AVATAR_BYTES = 350 * 1024  # 350KB post-processing cap
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -243,14 +244,26 @@ async def upload_avatar(
             if fitted.mode not in ("RGB",):
                 fitted = fitted.convert("RGB")
 
-            out = BytesIO()
-            fitted.save(out, format="JPEG", quality=85, optimize=True)
-            processed = out.getvalue()
+            processed = b""
+            for quality in (85, 75, 65, 55):
+                out = BytesIO()
+                fitted.save(out, format="JPEG", quality=quality, optimize=True)
+                candidate = out.getvalue()
+                if len(candidate) <= MAX_PROCESSED_AVATAR_BYTES:
+                    processed = candidate
+                    break
+                processed = candidate
     except UnidentifiedImageError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid image file",
         ) from exc
+
+    if len(processed) > MAX_PROCESSED_AVATAR_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Processed avatar is too large. Please upload a simpler image.",
+        )
 
     # Convert processed image to base64 data URL
     b64 = base64.b64encode(processed).decode("utf-8")
