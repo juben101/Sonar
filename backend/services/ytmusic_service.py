@@ -397,108 +397,88 @@ async def get_audio_stream_url(video_id: str) -> str:
         },
     }
 
-    option_sets = [
-        # Try with PO tokens and multiple browsers
-        {
-            **base_opts,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["android", "web", "ios", "mweb"],
-                    "po_token_ver": "2",
-                }
+    import os
+    
+    # Check if cookie file exists for deployed server
+    cookie_file = "/app/cookies.txt"  # Path on deployed server
+    has_cookie_file = os.path.exists(cookie_file)
+    
+    if has_cookie_file:
+        logger.info(f"Using manual cookie file: {cookie_file}")
+    
+    option_sets = []
+    
+    # If cookie file exists, use it with multiple player clients
+    if has_cookie_file:
+        option_sets.extend([
+            {
+                **base_opts,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "web", "ios", "mweb"],
+                        "po_token_ver": "2",
+                    }
+                },
+                "cookiefile": cookie_file,
             },
-            "cookiesfrombrowser": ("chrome",),
-        },
-        {
-            **base_opts,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["android", "web", "ios", "mweb"],
-                    "po_token_ver": "2",
-                }
+            {
+                **base_opts,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["web"],
+                        "po_token_ver": "2",
+                    }
+                },
+                "cookiefile": cookie_file,
             },
-            "cookiesfrombrowser": ("firefox",),
-        },
-        {
-            **base_opts,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["android", "web", "ios", "mweb"],
-                    "po_token_ver": "2",
-                }
+            {
+                **base_opts,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android"],
+                        "po_token_ver": "2",
+                    }
+                },
+                "cookiefile": cookie_file,
             },
-            "cookiesfrombrowser": ("safari",),
-        },
-        {
-            **base_opts,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["android", "web", "ios", "mweb"],
-                    "po_token_ver": "2",
-                }
+            {
+                **base_opts,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["music"],
+                    }
+                },
+                "cookiefile": cookie_file,
             },
-            "cookiesfrombrowser": ("edge",),
-        },
-        # Try with different player clients
-        {
-            **base_opts,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["web"],
-                    "po_token_ver": "2",
-                }
+        ])
+    else:
+        # Fallback to browser cookies (only works locally)
+        logger.warning("No cookie file found, falling back to browser cookies (may not work on deployed server)")
+        option_sets.extend([
+            {
+                **base_opts,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "web", "ios", "mweb"],
+                        "po_token_ver": "2",
+                    }
+                },
+                "cookiesfrombrowser": ("chrome",),
             },
-            "cookiesfrombrowser": ("chrome",),
-        },
-        {
-            **base_opts,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["android"],
-                    "po_token_ver": "2",
-                }
+            {
+                **base_opts,
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "web", "ios", "mweb"],
+                        "po_token_ver": "2",
+                    }
+                },
+                "cookiesfrombrowser": ("firefox",),
             },
-            "cookiesfrombrowser": ("chrome",),
-        },
-        {
-            **base_opts,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["ios"],
-                    "po_token_ver": "2",
-                }
-            },
-            "cookiesfrombrowser": ("chrome",),
-        },
-        {
-            **base_opts,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["mweb"],
-                    "po_token_ver": "2",
-                }
-            },
-            "cookiesfrombrowser": ("chrome",),
-        },
-        # Try without PO tokens
-        {
-            **base_opts,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["android", "web", "ios", "mweb"],
-                }
-            },
-            "cookiesfrombrowser": ("chrome",),
-        },
-        {
-            **base_opts,
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["android", "web", "ios", "mweb"],
-                }
-            },
-            "cookiesfrombrowser": ("firefox",),
-        },
+        ])
+    
+    # Always add no-cookie fallbacks
+    option_sets.extend([
         # Android only without cookies
         {
             **base_opts,
@@ -517,7 +497,7 @@ async def get_audio_stream_url(video_id: str) -> str:
                 }
             },
         },
-    ]
+    ])
 
     def _extract() -> str:
         last_error = None
