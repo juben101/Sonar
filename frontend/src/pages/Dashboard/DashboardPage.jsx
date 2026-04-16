@@ -56,6 +56,75 @@ export default function DashboardPage() {
     deletePlaylist(id);
   };
 
+  // ── Settings state (persisted to localStorage) ──
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem("sonar-settings");
+    return saved
+      ? JSON.parse(saved)
+      : {
+          dailyReminder: true,
+          streakAlerts: true,
+          saveMoodHistory: true,
+          defaultVolume: 80,
+          autoplayNext: true,
+          crossfade: false,
+        };
+  });
+
+  const updateSetting = (key, value) => {
+    setSettings((prev) => {
+      const updated = { ...prev, [key]: value };
+      localStorage.setItem("sonar-settings", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleClearHistory = async () => {
+    if (!window.confirm("Clear all your mood history? This cannot be undone.")) return;
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const base = import.meta.env.VITE_API_URL || "";
+      await fetch(`${base}/v1/mood/history`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      alert("Mood history cleared.");
+    } catch {
+      alert("Failed to clear history. Try again later.");
+    }
+  };
+
+  const handleDownloadData = async () => {
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const base = import.meta.env.VITE_API_URL || "";
+      const [histRes, statsRes] = await Promise.all([
+        fetch(`${base}/v1/mood/history`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${base}/v1/mood/stats`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const history = histRes.ok ? await histRes.json() : [];
+      const stats = statsRes.ok ? await statsRes.json() : {};
+      const savedPlaylists = JSON.parse(localStorage.getItem("sonar-playlists") || "[]");
+      const exportData = {
+        exported_at: new Date().toISOString(),
+        user: { username: displayName },
+        mood_history: history,
+        mood_stats: stats,
+        saved_playlists: savedPlaylists,
+        settings,
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sonar-data-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Failed to export data. Try again later.");
+    }
+  };
+
   return (
     <div className="db-root">
       <StarfieldCanvas starCount={60} />
@@ -356,10 +425,136 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 )}
-                {["notifications", "privacy", "audio"].includes(activeSettingsTab) && (
+
+                {/* ── Notifications ── */}
+                {activeSettingsTab === "notifications" && (
                   <div className="db-settings-section">
-                    <h3 style={{ textTransform: "capitalize" }}>{activeSettingsTab}</h3>
-                    <p className="db-settings-desc">Settings for this section coming soon.</p>
+                    <h3>Notifications</h3>
+                    <p className="db-settings-desc">Choose what Sonar reminds you about.</p>
+
+                    <div className="db-settings-toggle-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Daily mood check-in</span>
+                        <span className="db-settings-toggle-hint">Gentle reminder to log how you're feeling</span>
+                      </div>
+                      <button
+                        className={`db-toggle ${settings.dailyReminder ? "db-toggle--on" : ""}`}
+                        onClick={() => updateSetting("dailyReminder", !settings.dailyReminder)}
+                        aria-label="Toggle daily reminder"
+                      >
+                        <span className="db-toggle-thumb" />
+                      </button>
+                    </div>
+
+                    <div className="db-settings-toggle-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Streak alerts</span>
+                        <span className="db-settings-toggle-hint">Get notified about streak milestones and at-risk streaks</span>
+                      </div>
+                      <button
+                        className={`db-toggle ${settings.streakAlerts ? "db-toggle--on" : ""}`}
+                        onClick={() => updateSetting("streakAlerts", !settings.streakAlerts)}
+                        aria-label="Toggle streak alerts"
+                      >
+                        <span className="db-toggle-thumb" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Privacy ── */}
+                {activeSettingsTab === "privacy" && (
+                  <div className="db-settings-section">
+                    <h3>Privacy</h3>
+                    <p className="db-settings-desc">Control how your emotional data is stored.</p>
+
+                    <div className="db-settings-toggle-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Save mood history</span>
+                        <span className="db-settings-toggle-hint">When off, mood entries won't be saved after analysis</span>
+                      </div>
+                      <button
+                        className={`db-toggle ${settings.saveMoodHistory ? "db-toggle--on" : ""}`}
+                        onClick={() => updateSetting("saveMoodHistory", !settings.saveMoodHistory)}
+                        aria-label="Toggle mood history saving"
+                      >
+                        <span className="db-toggle-thumb" />
+                      </button>
+                    </div>
+
+                    <div className="db-settings-action-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Download my data</span>
+                        <span className="db-settings-toggle-hint">Export all your mood history, playlists, and settings as JSON</span>
+                      </div>
+                      <button className="db-settings-action-btn" onClick={handleDownloadData}>
+                        ↓ Export
+                      </button>
+                    </div>
+
+                    <div className="db-settings-action-row db-settings-action-row--danger">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Clear mood history</span>
+                        <span className="db-settings-toggle-hint">Permanently delete all mood entries from the server</span>
+                      </div>
+                      <button className="db-settings-action-btn db-settings-action-btn--danger" onClick={handleClearHistory}>
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Audio ── */}
+                {activeSettingsTab === "audio" && (
+                  <div className="db-settings-section">
+                    <h3>Audio</h3>
+                    <p className="db-settings-desc">Customize your listening experience.</p>
+
+                    <div className="db-settings-slider-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Default volume</span>
+                        <span className="db-settings-toggle-hint">Set the initial volume for playback</span>
+                      </div>
+                      <div className="db-settings-slider-control">
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={settings.defaultVolume}
+                          onChange={(e) => updateSetting("defaultVolume", Number(e.target.value))}
+                          className="db-settings-slider"
+                        />
+                        <span className="db-settings-slider-value">{settings.defaultVolume}%</span>
+                      </div>
+                    </div>
+
+                    <div className="db-settings-toggle-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Autoplay next track</span>
+                        <span className="db-settings-toggle-hint">Automatically play the next song when current one ends</span>
+                      </div>
+                      <button
+                        className={`db-toggle ${settings.autoplayNext ? "db-toggle--on" : ""}`}
+                        onClick={() => updateSetting("autoplayNext", !settings.autoplayNext)}
+                        aria-label="Toggle autoplay"
+                      >
+                        <span className="db-toggle-thumb" />
+                      </button>
+                    </div>
+
+                    <div className="db-settings-toggle-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Crossfade</span>
+                        <span className="db-settings-toggle-hint">Smoothly blend between tracks for seamless listening</span>
+                      </div>
+                      <button
+                        className={`db-toggle ${settings.crossfade ? "db-toggle--on" : ""}`}
+                        onClick={() => updateSetting("crossfade", !settings.crossfade)}
+                        aria-label="Toggle crossfade"
+                      >
+                        <span className="db-toggle-thumb" />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
