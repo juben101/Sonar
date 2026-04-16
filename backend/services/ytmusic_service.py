@@ -548,18 +548,9 @@ async def get_audio_stream_url(video_id: str) -> str:
     ])
 
     def _extract_single(url: str, opts: dict) -> str:
-        """Single extraction attempt with timeout"""
+        """Single extraction attempt (thread-safe, no signals)."""
         try:
-            # Add individual attempt timeout
-            import signal
-            
-            def timeout_handler(signum, frame):
-                raise TimeoutError("Extraction timeout")
-            
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(8)  # 8 second timeout per attempt
-            
-            logger.info(f"Attempting extraction for {video_id} with opts: {opts}")
+            logger.info(f"Attempting extraction for {video_id} with client: {opts.get('extractor_args', {}).get('youtube', {}).get('player_client', ['default'])}")
             
             with yt_dlp.YoutubeDL(opts) as ydl:
                 info = ydl.extract_info(url, download=False)
@@ -570,19 +561,9 @@ async def get_audio_stream_url(video_id: str) -> str:
                 else:
                     logger.warning(f"No audio URL found for {video_id}")
                     return ""
-        except TimeoutError:
-            logger.warning(f"yt-dlp timeout for {video_id}")
-            return ""
         except Exception as err:
-            # Log the full error, not truncated
             logger.error(f"yt-dlp extraction failed for {video_id}: {str(err)}")
-            logger.error(f"Full error details: {repr(err)}")
-            logger.error(f"Error type: {type(err)}")
             return ""
-        finally:
-            signal.alarm(0)  # Cancel timeout
-        
-        return ""
 
     def _extract() -> str:
         last_error = None
