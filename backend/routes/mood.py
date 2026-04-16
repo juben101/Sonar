@@ -34,7 +34,7 @@ from services.mood_service import (
     generate_playlist,
     transcribe,
 )
-from services.ytmusic_service import get_audio_stream_url_cached, prefetch_playlist_streams
+from services.ytmusic_service import get_audio_stream_url_cached
 
 router = APIRouter(prefix="/mood", tags=["mood"])
 

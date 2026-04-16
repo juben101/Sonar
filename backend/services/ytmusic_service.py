@@ -8,6 +8,8 @@ Maps mood dimensions → search queries for curated playlists.
 import asyncio
 import logging
 import random
+import time
+from typing import Dict, Tuple
 
 from ytmusicapi import YTMusic
 
@@ -357,8 +359,6 @@ async def get_recommendations(
     return all_tracks
 
 
-import time
-from typing import Dict, Tuple
 
 # Simple in-memory cache: {video_id: (url, expires_at)}
 _stream_cache: Dict[str, Tuple[str, float]] = {}
