@@ -32,9 +32,9 @@ from services.mood_service import (
     analyze_mood,
     fetch_weather,
     generate_playlist,
-    stream_audio,
     transcribe,
 )
+from services.ytmusic_service import get_audio_stream_url_cached
 
 router = APIRouter(prefix="/mood", tags=["mood"])
 
@@ -324,8 +324,13 @@ async def get_stream(
 ):
     """Extract audio stream URL for a YouTube Music track (on-demand)."""
     try:
-        audio_url = await stream_audio(video_id)
+        # Use cached function with built-in timeout
+        audio_url = await get_audio_stream_url_cached(video_id)
         return {"audio_url": audio_url}
+    except ValueError as e:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=504, detail=str(e))
     except Exception as e:
         from fastapi import HTTPException
 

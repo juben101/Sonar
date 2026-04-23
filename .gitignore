@@ -1,6 +1,7 @@
 # Environment variables
 .env
 .env.local
+.env.production
 
 # Python
 __pycache__/
@@ -10,5 +11,13 @@ venv/
 .venv/
 *.egg-info/
 
+# Node
+node_modules/
+dist/
+
+# AWS / SSH keys
+*.pem
+
 # macOS
 .DS_Store
+cookies.txt

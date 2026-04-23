@@ -57,6 +57,11 @@ const useAuthStore = create((set) => ({
     set({ user: null, accessToken: null, refreshToken: null, error: null });
   },
 
+  setUser: (user) => {
+    localStorage.setItem("sonar_user", JSON.stringify(user));
+    set({ user });
+  },
+
   clearError: () => set({ error: null }),
 }));
 

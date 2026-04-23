@@ -8,6 +8,8 @@ Maps mood dimensions → search queries for curated playlists.
 import asyncio
 import logging
 import random
+import time
+from typing import Dict, Tuple
 
 from ytmusicapi import YTMusic
 
@@ -357,67 +359,126 @@ async def get_recommendations(
     return all_tracks
 
 
+# Simple in-memory cache: {video_id: (url, expires_at)}
+_stream_cache: Dict[str, Tuple[str, float]] = {}
+CACHE_TTL = 60 * 60 * 5  # 5 hours (URLs expire in ~6h)
+
+
+async def get_audio_stream_url_cached(video_id: str) -> str:
+    """Get audio stream URL with caching to avoid repeated extractions."""
+    now = time.time()
+
+    # Check cache first
+    if video_id in _stream_cache:
+        url, expires = _stream_cache[video_id]
+        if now < expires:
+            logger.info(f"Using cached stream URL for {video_id}")
+            return url  # instant return
+        else:
+            # Expired, remove from cache
+            del _stream_cache[video_id]
+
+    # Extract with hard timeout
+    try:
+        url = await asyncio.wait_for(
+            get_audio_stream_url(video_id),
+            timeout=25.0,  # fail fast before CloudFront kills it
+        )
+    except asyncio.TimeoutError:
+        raise ValueError("Audio extraction timed out. Please try again.")
+
+    # Cache the result
+    _stream_cache[video_id] = (url, now + CACHE_TTL)
+    logger.info(f"Cached stream URL for {video_id}")
+    return url
+
+
 async def get_audio_stream_url(video_id: str) -> str:
     """
-    Extract the best audio stream URL for a YouTube video using yt-dlp.
+    Extract the best audio stream URL for a YouTube video using yt-dlp CLI.
 
-    Returns a direct audio URL that can be played with new Audio().
-    URLs are temporary (~6 hours) and should be fetched on-demand.
+    Uses subprocess so yt-dlp reads system config (/etc/yt-dlp.conf)
+    which includes --remote-components ejs:github for signature solving.
     """
-    import yt_dlp
+    import asyncio
+    import subprocess
+    import os
 
-    url_candidates = [
-        f"https://music.youtube.com/watch?v={video_id}",
-        f"https://www.youtube.com/watch?v={video_id}",
-        f"https://youtu.be/{video_id}",
+    cookie_file = os.environ.get("YT_COOKIE_FILE", "/opt/sonar/backend/cookies.txt")
+    has_cookies = os.path.exists(cookie_file)
+
+    url = f"https://www.youtube.com/watch?v={video_id}"
+
+    cmd = [
+        "yt-dlp",
+        "--get-url",
+        "-f",
+        "bestaudio[ext=m4a]/bestaudio/best",
+        "--no-playlist",
+        "--socket-timeout",
+        "10",
     ]
 
-    base_opts = {
-        "format": "bestaudio/best",
-        "quiet": True,
-        "no_warnings": True,
-        "extract_flat": False,
-        "skip_download": True,
-        "noplaylist": True,
-        "http_headers": {
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    if has_cookies:
+        cmd.extend(["--cookies", cookie_file])
+        logger.info(f"Using cookie file: {cookie_file}")
+
+    cmd.append(url)
+
+    def _run_cli() -> str:
+        """Run yt-dlp CLI and return the audio URL."""
+        env = os.environ.copy()
+        env["PATH"] = f"/usr/local/bin:/usr/bin:/bin:{env.get('PATH', '')}"
+
+        try:
+            logger.info(f"Extracting stream for {video_id} via CLI")
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                env=env,
             )
-        },
-    }
 
-    option_sets = [
-        base_opts,
-        {
-            **base_opts,
-            "extractor_args": {"youtube": {"player_client": ["android", "web"]}},
-        },
-    ]
+            if result.returncode == 0 and result.stdout.strip():
+                audio_url = result.stdout.strip().split("\n")[0]
+                logger.info(f"Successfully extracted {video_id}")
+                return audio_url
+            else:
+                stderr = result.stderr.strip()[-200:] if result.stderr else "No stderr"
+                logger.error(f"yt-dlp CLI failed for {video_id}: {stderr}")
+                return ""
 
-    def _extract() -> str:
-        last_error = None
-        for source_url in url_candidates:
-            for opts in option_sets:
-                try:
-                    with yt_dlp.YoutubeDL(opts) as ydl:
-                        info = ydl.extract_info(source_url, download=False)
-                        audio_url = info.get("url", "")
-                        if audio_url:
-                            return audio_url
-                except (
-                    Exception
-                ) as err:  # pragma: no cover - network/extractor variability
-                    last_error = err
-                    continue
-        if last_error:
-            raise last_error
-        return ""
+        except subprocess.TimeoutExpired:
+            logger.warning(f"yt-dlp CLI timeout for {video_id}")
+            return ""
+        except Exception as err:
+            logger.error(f"yt-dlp CLI error for {video_id}: {str(err)}")
+            return ""
 
-    audio_url = await asyncio.to_thread(_extract)
+    audio_url = await asyncio.to_thread(_run_cli)
 
     if not audio_url:
         raise ValueError(f"Could not extract audio URL for {video_id}")
 
     logger.info(f"yt-dlp: extracted audio stream for {video_id}")
     return audio_url
+
+
+async def prefetch_playlist_streams(tracks: list[dict]):
+    """Fire-and-forget background task to pre-warm stream URLs."""
+
+    async def _fetch(video_id: str):
+        try:
+            await get_audio_stream_url_cached(video_id)
+            logger.info(f"Prefetched stream URL for {video_id}")
+        except Exception as e:
+            logger.warning(f"Failed to prefetch {video_id}: {str(e)[:100]}")
+            pass  # silently fail, will retry on demand
+
+    # Fire and forget - don't await
+    asyncio.create_task(
+        asyncio.gather(
+            *[_fetch(t.get("video_id", "")) for t in tracks if t.get("video_id")]
+        )
+    )

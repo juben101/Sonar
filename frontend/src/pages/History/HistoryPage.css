@@ -75,6 +75,7 @@
 .mh-accent {
   background: linear-gradient(90deg, #ff6b8a, #c96dff);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
@@ -322,7 +323,7 @@
 
 /* ══════════ CHART CARDS ══════════ */
 .mh-chart-card {
-  padding: 24px;
+  padding: 20px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
@@ -339,7 +340,7 @@
 .mh-chart-desc {
   font-size: 0.76rem;
   color: rgba(255, 255, 255, 0.2);
-  margin: 0 0 20px;
+  margin: 0 0 12px;
 }
 
 .mh-chart-wrap { width: 100%; }
@@ -351,16 +352,34 @@
   gap: 12px;
 }
 
-.mh-chart-card--half { padding: 20px; }
+.mh-chart-card--half {
+  padding: 16px;
+}
+
+/* ── Heatmap + recent row ── */
+.mh-heatmap-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.mh-chart-card--heatmap {
+  padding-bottom: 16px;
+}
 
 /* ── Calendar Heatmap ── */
 .mh-cal-wrap {
   width: 100%;
   overflow-x: auto;
-  padding: 8px 0;
+  padding: 4px 0;
+  max-height: 230px;
 }
 
-.mh-cal-svg { width: 100%; height: auto; }
+.mh-cal-svg {
+  width: 100%;
+  height: auto;
+  max-height: 190px;
+}
 
 .mh-cal-month {
   fill: rgba(255, 255, 255, 0.2);
@@ -438,7 +457,7 @@
 .mh-pie-wrap {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
 }
 
 .mh-pie-legend {
@@ -497,12 +516,19 @@
 
 /* ══════════ RECENT ENTRIES ══════════ */
 .mh-recent { margin-top: 0.5rem; }
+.mh-recent-card { margin-top: 0; }
 
 .mh-entries {
   display: flex;
   flex-direction: column;
   gap: 4px;
   margin-top: 16px;
+}
+
+.mh-entries--compact {
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .mh-entry {
@@ -605,6 +631,7 @@
   .mh-stats-grid { grid-template-columns: repeat(2, 1fr); }
   .mh-wow-grid { grid-template-columns: repeat(2, 1fr); }
   .mh-chart-row { grid-template-columns: 1fr; }
+  .mh-heatmap-row { grid-template-columns: 1fr; }
   .mh-pie-wrap { flex-direction: column; }
   .mh-header { padding: 1.8rem 1.4rem; }
   .mh-header-controls { flex-direction: column; align-items: flex-start; }

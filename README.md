@@ -21,6 +21,10 @@ _A multimodal framework combining emotion recognition, uncertainty modeling, hyb
 &nbsp;&nbsp;
 [![Patent](https://img.shields.io/badge/📋_Patent_Filing-View_Application-e11d48?style=for-the-badge)](#)
 
+<br/>
+
+[![Live Demo](https://img.shields.io/badge/🌐_Live_Demo-Try_Sonar_Now-00c853?style=for-the-badge)](https://d3k28wwqjkwx9j.cloudfront.net)
+
 </div>
 
 ---
@@ -181,6 +185,8 @@ Dual-level explanations surface both **why an emotion was detected** (SHAP-based
 | **Styling** | Vanilla CSS, glassmorphism, micro-animations, react-snowfall |
 | **Testing** | pytest + respx (backend), Vitest + Testing Library (frontend) |
 | **Linting** | ruff (Python), ESLint (JavaScript) |
+| **Deployment** | AWS — S3 + CloudFront (frontend), EC2 (backend), RDS PostgreSQL (database) |
+| **CI** | GitHub Actions (lint + test + build) |
 
 ---
 
@@ -207,7 +213,7 @@ Sonar/
 │   └── package.json
 │
 ├── backend/
-│   ├── models/                   # SQLAlchemy models (User, RefreshToken, MoodEntry, SongPreference)
+│   ├── models/                   # SQLAlchemy models (User, RefreshToken, MoodEntry, SongPreference, SavedPlaylist)
 │   ├── schemas/                  # Pydantic v2 schemas with validation
 │   ├── routes/                   # API routes (auth, mood, chat)
 │   ├── services/
@@ -224,6 +230,8 @@ Sonar/
 │   ├── main.py                   # App entry point
 │   └── requirements.txt
 │
+├── .github/workflows/           # CI pipeline (lint, test, build)
+├── deploy.sh                    # One-command AWS deployment script
 └── README.md
 ```
 
@@ -240,7 +248,7 @@ Sonar/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/Sonar.git
+git clone https://github.com/IamHarriiii/Sonar.git
 cd Sonar
 ```
 

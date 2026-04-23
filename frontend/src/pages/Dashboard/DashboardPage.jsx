@@ -1,13 +1,14 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import StarfieldCanvas from "../../components/StarfieldCanvas";
 import useAuthStore from "../../stores/useAuthStore";
 import usePlaylistStore from "../../stores/usePlaylistStore";
+import { authApi, moodApi } from "../../services/api";
 import "./DashboardPage.css";
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user, logout, setUser } = useAuthStore();
   const { playlists, deletePlaylist, fetchPlaylists } = usePlaylistStore();
   const displayName = user?.username || "User";
   const displayInitial = displayName.charAt(0).toUpperCase();
@@ -15,6 +16,19 @@ export default function DashboardPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState("account");
   const profileRef = useRef(null);
+  const avatarInputRef = useRef(null);
+  const [profileForm, setProfileForm] = useState({
+    username: user?.username || "",
+    email: user?.email || "",
+  });
+  const [profileError, setProfileError] = useState("");
+  const [profileSuccess, setProfileSuccess] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [smartNotifications, setSmartNotifications] = useState([]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -30,6 +44,13 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchPlaylists();
   }, [fetchPlaylists]);
+
+  useEffect(() => {
+    setProfileForm({
+      username: user?.username || "",
+      email: user?.email || "",
+    });
+  }, [user?.username, user?.email]);
 
   // Time-based greeting
   const hour = new Date().getHours();
@@ -56,6 +77,230 @@ export default function DashboardPage() {
     deletePlaylist(id);
   };
 
+  const usernameCooldownDaysRemaining = useMemo(() => {
+    if (!user?.username_changed_at) return 0;
+    const changedAt = new Date(user.username_changed_at);
+    if (Number.isNaN(changedAt.getTime())) return 0;
+    const daysElapsed = Math.floor(
+      (Date.now() - changedAt.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    return Math.max(0, 30 - daysElapsed);
+  }, [user?.username_changed_at]);
+
+  const dismissNotification = (id) => {
+    const dismissed = JSON.parse(
+      localStorage.getItem("sonar-dismissed-notifications") || "[]"
+    );
+    if (!dismissed.includes(id)) {
+      localStorage.setItem(
+        "sonar-dismissed-notifications",
+        JSON.stringify([...dismissed, id])
+      );
+    }
+    setSmartNotifications((prev) => prev.filter((notification) => notification.id !== id));
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const buildNotifications = async () => {
+      const dismissed = new Set(
+        JSON.parse(localStorage.getItem("sonar-dismissed-notifications") || "[]")
+      );
+      const nextNotifications = [];
+
+      const lastVisit = localStorage.getItem("sonar-last-visit");
+      if (lastVisit) {
+        const diffDays = Math.floor(
+          (Date.now() - new Date(lastVisit).getTime()) / (1000 * 60 * 60 * 24)
+        );
+        if (diffDays >= 3 && !dismissed.has("welcome-back")) {
+          nextNotifications.push({
+            id: "welcome-back",
+            icon: "👋",
+            message: `Hey, we missed you! It's been ${diffDays} days - how's life?`,
+          });
+        }
+      }
+      localStorage.setItem("sonar-last-visit", new Date().toISOString());
+
+      try {
+        const history = await moodApi.history(60, 10);
+        const entries = Array.isArray(history?.entries) ? history.entries : [];
+        if (entries.length >= 3) {
+          const [first, second, third] = entries;
+          const emotion = first?.base_emotion;
+          if (
+            emotion &&
+            emotion === second?.base_emotion &&
+            emotion === third?.base_emotion &&
+            !dismissed.has("mood-pattern")
+          ) {
+            nextNotifications.push({
+              id: "mood-pattern",
+              icon: "🎭",
+              message: `You've been feeling ${emotion} lately - want to explore new vibes?`,
+            });
+          }
+        }
+      } catch {
+        // Non-blocking enhancement: ignore fetch failures here.
+      }
+
+      if (isMounted) {
+        setSmartNotifications(nextNotifications);
+      }
+    };
+
+    buildNotifications();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleSaveProfile = async () => {
+    const username = profileForm.username.trim();
+    const email = profileForm.email.trim();
+
+    setProfileError("");
+    setProfileSuccess("");
+
+    if (!username) {
+      setProfileError("Username cannot be empty.");
+      return;
+    }
+
+    setIsSavingProfile(true);
+    try {
+      const updated = await authApi.updateProfile({
+        username,
+        email: email || null,
+      });
+      setUser(updated);
+      setProfileSuccess("Profile updated successfully.");
+    } catch (err) {
+      setProfileError(err.message || "Failed to update profile.");
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleAvatarUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setProfileError("");
+    setProfileSuccess("");
+    setIsUploadingAvatar(true);
+
+    try {
+      const updated = await authApi.uploadAvatar(file);
+      setUser(updated);
+      setProfileSuccess("Avatar updated.");
+    } catch (err) {
+      const message = err.message || "";
+      if (message.includes("Processed avatar is too large")) {
+        setProfileError("That image is too complex after processing. Try a simpler photo or screenshot.");
+      } else if (message.includes("Image must be smaller than 2MB")) {
+        setProfileError("Please upload an image smaller than 2MB.");
+      } else if (message.includes("File must be an image") || message.includes("Invalid image file")) {
+        setProfileError("Please choose a valid image file.");
+      } else {
+        setProfileError("Failed to upload avatar. Please try again.");
+      }
+    } finally {
+      setIsUploadingAvatar(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmInput !== (user?.username || "")) {
+      setProfileError("Username confirmation does not match.");
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    setProfileError("");
+    try {
+      await authApi.deleteAccount();
+      await logout();
+      navigate("/");
+    } catch (err) {
+      setProfileError(err.message || "Failed to delete account.");
+      setIsDeletingAccount(false);
+    }
+  };
+
+  // ── Settings state (persisted to localStorage) ──
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem("sonar-settings");
+    return saved
+      ? JSON.parse(saved)
+      : {
+          dailyReminder: true,
+          streakAlerts: true,
+          saveMoodHistory: true,
+          defaultVolume: 80,
+          autoplayNext: true,
+          crossfade: false,
+        };
+  });
+
+  const updateSetting = (key, value) => {
+    setSettings((prev) => {
+      const updated = { ...prev, [key]: value };
+      localStorage.setItem("sonar-settings", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleClearHistory = async () => {
+    if (!window.confirm("Clear all your mood history? This cannot be undone.")) return;
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const base = import.meta.env.VITE_API_URL || "";
+      await fetch(`${base}/v1/mood/history`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      alert("Mood history cleared.");
+    } catch {
+      alert("Failed to clear history. Try again later.");
+    }
+  };
+
+  const handleDownloadData = async () => {
+    try {
+      const token = useAuthStore.getState().accessToken;
+      const base = import.meta.env.VITE_API_URL || "";
+      const [histRes, statsRes] = await Promise.all([
+        fetch(`${base}/v1/mood/history`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${base}/v1/mood/stats`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      const history = histRes.ok ? await histRes.json() : [];
+      const stats = statsRes.ok ? await statsRes.json() : {};
+      const savedPlaylists = JSON.parse(localStorage.getItem("sonar-playlists") || "[]");
+      const exportData = {
+        exported_at: new Date().toISOString(),
+        user: { username: displayName },
+        mood_history: history,
+        mood_stats: stats,
+        saved_playlists: savedPlaylists,
+        settings,
+      };
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sonar-data-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Failed to export data. Try again later.");
+    }
+  };
+
   return (
     <div className="db-root">
       <StarfieldCanvas starCount={60} />
@@ -72,7 +317,7 @@ export default function DashboardPage() {
 
           <div className="db-nav-center">
             <span className="db-nav-tag" onClick={() => navigate("/dashboard")} style={{ cursor: "pointer" }}>Your Library</span>
-            <span className="db-nav-tag" onClick={() => navigate("/history")} style={{ cursor: "pointer", opacity: 0.6 }}>📊 Mood History</span>
+            <span className="db-nav-tag" onClick={() => navigate("/history")} style={{ cursor: "pointer", opacity: 0.6 }}>Mood History</span>
           </div>
 
           {/* Profile box */}
@@ -83,7 +328,11 @@ export default function DashboardPage() {
               aria-label="User profile menu"
             >
               <div className="db-avatar">
-                <span>{displayInitial}</span>
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt={`${displayName} avatar`} className="db-avatar-image" />
+                ) : (
+                  <span>{displayInitial}</span>
+                )}
                 <div className="db-avatar-ring" />
               </div>
               <span className="db-username">{displayName}</span>
@@ -101,10 +350,16 @@ export default function DashboardPage() {
             {profileOpen && (
               <div className="db-dropdown">
                 <div className="db-dropdown-header">
-                  <div className="db-dropdown-avatar">{displayInitial}</div>
+                  <div className="db-dropdown-avatar">
+                    {user?.avatar_url ? (
+                      <img src={user.avatar_url} alt={`${displayName} avatar`} className="db-avatar-image" />
+                    ) : (
+                      displayInitial
+                    )}
+                  </div>
                   <div>
                     <p className="db-dropdown-name">{displayName}</p>
-                    <p className="db-dropdown-email">@{displayName}</p>
+                    <p className="db-dropdown-email">{user?.email || `@${displayName}`}</p>
                   </div>
                 </div>
                 <div className="db-dropdown-divider" />
@@ -113,9 +368,6 @@ export default function DashboardPage() {
                   onClick={() => { setSettingsOpen(true); setProfileOpen(false); }}
                 >
                   <span className="db-dropdown-icon">⚙️</span> Settings
-                </button>
-                <button className="db-dropdown-item">
-                  <span className="db-dropdown-icon">🎨</span> Appearance
                 </button>
                 <button className="db-dropdown-item">
                   <span className="db-dropdown-icon">🔔</span> Notifications
@@ -135,6 +387,26 @@ export default function DashboardPage() {
 
       {/* ── Main Content ── */}
       <main className="db-main">
+        {smartNotifications.length > 0 && (
+          <section className="db-smart-notifications">
+            {smartNotifications.map((notification) => (
+              <div key={notification.id} className="db-smart-banner">
+                <div className="db-smart-banner-content">
+                  <span className="db-smart-banner-icon">{notification.icon}</span>
+                  <p>{notification.message}</p>
+                </div>
+                <button
+                  className="db-smart-banner-close"
+                  onClick={() => dismissNotification(notification.id)}
+                  aria-label="Dismiss notification"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </section>
+        )}
+
         {/* Hero greeting */}
         <section className="db-hero">
           <div className="db-hero-text">
@@ -319,7 +591,6 @@ export default function DashboardPage() {
               <div className="db-modal-sidebar">
                 {[
                   { id: "account", icon: "👤", label: "Account" },
-                  { id: "appearance", icon: "🎨", label: "Appearance" },
                   { id: "notifications", icon: "🔔", label: "Notifications" },
                   { id: "privacy", icon: "🔒", label: "Privacy" },
                   { id: "audio", icon: "🎵", label: "Audio" },
@@ -339,52 +610,252 @@ export default function DashboardPage() {
                   <div className="db-settings-section">
                     <h3>Account Details</h3>
                     <div className="db-settings-row">
-                      <div className="db-settings-avatar-big">{displayInitial}</div>
+                      <div className="db-settings-avatar-big">
+                        {user?.avatar_url ? (
+                          <img src={user.avatar_url} alt={`${displayName} avatar`} className="db-avatar-image" />
+                        ) : (
+                          displayInitial
+                        )}
+                      </div>
                       <div>
                         <p className="db-settings-name">{displayName}</p>
-                        <button className="db-settings-change-avatar">Change avatar</button>
+                        <button
+                          className="db-settings-change-avatar"
+                          onClick={() => avatarInputRef.current?.click()}
+                          disabled={isUploadingAvatar}
+                        >
+                          {isUploadingAvatar ? "Uploading..." : "Change avatar"}
+                        </button>
+                        <input
+                          ref={avatarInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="db-hidden-file-input"
+                          onChange={handleAvatarUpload}
+                        />
                       </div>
                     </div>
                     <div className="db-settings-field">
                       <label>Username</label>
-                      <input type="text" defaultValue={displayName} />
+                      <input
+                        type="text"
+                        value={profileForm.username}
+                        onChange={(e) =>
+                          setProfileForm((prev) => ({ ...prev, username: e.target.value }))
+                        }
+                      />
+                      {usernameCooldownDaysRemaining > 0 &&
+                        profileForm.username.trim() !== (user?.username || "") && (
+                          <p className="db-settings-inline-hint">
+                            You can change your username again in {usernameCooldownDaysRemaining} day(s).
+                          </p>
+                        )}
                     </div>
                     <div className="db-settings-field">
                       <label>Email</label>
-                      <input type="email" placeholder="No email set" />
+                      <input
+                        type="email"
+                        placeholder="No email set"
+                        value={profileForm.email}
+                        onChange={(e) =>
+                          setProfileForm((prev) => ({ ...prev, email: e.target.value }))
+                        }
+                      />
                     </div>
-                    <button className="db-settings-save">Save Changes</button>
+                    {profileError && <p className="db-settings-error">{profileError}</p>}
+                    {profileSuccess && <p className="db-settings-success">{profileSuccess}</p>}
+                    <button className="db-settings-save" onClick={handleSaveProfile} disabled={isSavingProfile}>
+                      {isSavingProfile ? "Saving..." : "Save Changes"}
+                    </button>
                     <div className="db-settings-danger-zone">
                       <h4>Danger Zone</h4>
-                      <button className="db-settings-delete">Delete Account</button>
+                      <button className="db-settings-delete" onClick={() => setShowDeleteConfirm(true)}>
+                        Delete Account
+                      </button>
                     </div>
                   </div>
                 )}
-                {activeSettingsTab === "appearance" && (
+
+                {/* ── Notifications ── */}
+                {activeSettingsTab === "notifications" && (
                   <div className="db-settings-section">
-                    <h3>Appearance</h3>
-                    <p className="db-settings-desc">Customize how Sonar looks for you.</p>
-                    <div className="db-settings-field">
-                      <label>Theme</label>
-                      <div className="db-settings-theme-options">
-                        <div className="db-theme-option db-theme-option--active">
-                          <div className="db-theme-preview db-theme-preview--dark" />
-                          <span>Dark</span>
-                        </div>
-                        <div className="db-theme-option">
-                          <div className="db-theme-preview db-theme-preview--amoled" />
-                          <span>AMOLED</span>
-                        </div>
+                    <h3>Notifications</h3>
+                    <p className="db-settings-desc">Choose what Sonar reminds you about.</p>
+
+                    <div className="db-settings-toggle-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Daily mood check-in</span>
+                        <span className="db-settings-toggle-hint">Gentle reminder to log how you're feeling</span>
+                      </div>
+                      <button
+                        className={`db-toggle ${settings.dailyReminder ? "db-toggle--on" : ""}`}
+                        onClick={() => updateSetting("dailyReminder", !settings.dailyReminder)}
+                        aria-label="Toggle daily reminder"
+                      >
+                        <span className="db-toggle-thumb" />
+                      </button>
+                    </div>
+
+                    <div className="db-settings-toggle-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Streak alerts</span>
+                        <span className="db-settings-toggle-hint">Get notified about streak milestones and at-risk streaks</span>
+                      </div>
+                      <button
+                        className={`db-toggle ${settings.streakAlerts ? "db-toggle--on" : ""}`}
+                        onClick={() => updateSetting("streakAlerts", !settings.streakAlerts)}
+                        aria-label="Toggle streak alerts"
+                      >
+                        <span className="db-toggle-thumb" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Privacy ── */}
+                {activeSettingsTab === "privacy" && (
+                  <div className="db-settings-section">
+                    <h3>Privacy</h3>
+                    <p className="db-settings-desc">Control how your emotional data is stored.</p>
+
+                    <div className="db-settings-toggle-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Save mood history</span>
+                        <span className="db-settings-toggle-hint">When off, mood entries won't be saved after analysis</span>
+                      </div>
+                      <button
+                        className={`db-toggle ${settings.saveMoodHistory ? "db-toggle--on" : ""}`}
+                        onClick={() => updateSetting("saveMoodHistory", !settings.saveMoodHistory)}
+                        aria-label="Toggle mood history saving"
+                      >
+                        <span className="db-toggle-thumb" />
+                      </button>
+                    </div>
+
+                    <div className="db-settings-action-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Download my data</span>
+                        <span className="db-settings-toggle-hint">Export all your mood history, playlists, and settings as JSON</span>
+                      </div>
+                      <button className="db-settings-action-btn" onClick={handleDownloadData}>
+                        ↓ Export
+                      </button>
+                    </div>
+
+                    <div className="db-settings-action-row db-settings-action-row--danger">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Clear mood history</span>
+                        <span className="db-settings-toggle-hint">Permanently delete all mood entries from the server</span>
+                      </div>
+                      <button className="db-settings-action-btn db-settings-action-btn--danger" onClick={handleClearHistory}>
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Audio ── */}
+                {activeSettingsTab === "audio" && (
+                  <div className="db-settings-section">
+                    <h3>Audio</h3>
+                    <p className="db-settings-desc">Customize your listening experience.</p>
+
+                    <div className="db-settings-slider-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Default volume</span>
+                        <span className="db-settings-toggle-hint">Set the initial volume for playback</span>
+                      </div>
+                      <div className="db-settings-slider-control">
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={settings.defaultVolume}
+                          onChange={(e) => updateSetting("defaultVolume", Number(e.target.value))}
+                          className="db-settings-slider"
+                        />
+                        <span className="db-settings-slider-value">{settings.defaultVolume}%</span>
                       </div>
                     </div>
+
+                    <div className="db-settings-toggle-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Autoplay next track</span>
+                        <span className="db-settings-toggle-hint">Automatically play the next song when current one ends</span>
+                      </div>
+                      <button
+                        className={`db-toggle ${settings.autoplayNext ? "db-toggle--on" : ""}`}
+                        onClick={() => updateSetting("autoplayNext", !settings.autoplayNext)}
+                        aria-label="Toggle autoplay"
+                      >
+                        <span className="db-toggle-thumb" />
+                      </button>
+                    </div>
+
+                    <div className="db-settings-toggle-row">
+                      <div className="db-settings-toggle-info">
+                        <span className="db-settings-toggle-label">Crossfade</span>
+                        <span className="db-settings-toggle-hint">Smoothly blend between tracks for seamless listening</span>
+                      </div>
+                      <button
+                        className={`db-toggle ${settings.crossfade ? "db-toggle--on" : ""}`}
+                        onClick={() => updateSetting("crossfade", !settings.crossfade)}
+                        aria-label="Toggle crossfade"
+                      >
+                        <span className="db-toggle-thumb" />
+                      </button>
+                    </div>
                   </div>
                 )}
-                {["notifications", "privacy", "audio"].includes(activeSettingsTab) && (
-                  <div className="db-settings-section">
-                    <h3 style={{ textTransform: "capitalize" }}>{activeSettingsTab}</h3>
-                    <p className="db-settings-desc">Settings for this section coming soon.</p>
-                  </div>
-                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="db-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
+          <div className="db-modal db-modal--confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="db-modal-header">
+              <h2 className="db-modal-title">Delete Account</h2>
+              <button
+                className="db-modal-close"
+                onClick={() => setShowDeleteConfirm(false)}
+                aria-label="Close delete account"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="db-modal-content">
+              <div className="db-settings-section">
+                <p className="db-settings-desc">
+                  This action is permanent. Type <strong>{user?.username}</strong> to confirm account deletion.
+                </p>
+                <div className="db-settings-field">
+                  <label>Confirm username</label>
+                  <input
+                    type="text"
+                    value={deleteConfirmInput}
+                    onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                  />
+                </div>
+                {profileError && <p className="db-settings-error">{profileError}</p>}
+                <div className="db-confirm-actions">
+                  <button
+                    className="db-settings-action-btn"
+                    onClick={() => setShowDeleteConfirm(false)}
+                    disabled={isDeletingAccount}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="db-settings-action-btn db-settings-action-btn--danger"
+                    onClick={handleDeleteAccount}
+                    disabled={isDeletingAccount || deleteConfirmInput !== (user?.username || "")}
+                  >
+                    {isDeletingAccount ? "Deleting..." : "Delete permanently"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

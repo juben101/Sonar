@@ -473,27 +473,76 @@ export default function HistoryPage() {
                 </div>
               )}
 
-              {/* ── Calendar Heatmap ── */}
-              {stats.calendar_data && (
-                <div className="mh-chart-card mh-grid-full">
-                  <h3 className="mh-chart-title">🗓️ Mood Calendar</h3>
-                  <p className="mh-chart-desc">Your analysis activity over the last 13 weeks</p>
-                  <div className="mh-cal-wrap">
-                    <CalendarHeatmap data={stats.calendar_data} />
+              {/* ── Calendar + Recent Row ── */}
+              <div className="mh-heatmap-row mh-grid-full">
+                {stats.calendar_data && (
+                  <div className="mh-chart-card mh-chart-card--heatmap">
+                    <h3 className="mh-chart-title">🗓️ Mood Calendar</h3>
+                    <p className="mh-chart-desc">Your analysis activity over the last 13 weeks</p>
+                    <div className="mh-cal-wrap">
+                      <CalendarHeatmap data={stats.calendar_data} />
+                    </div>
+                    <div className="mh-cal-legend">
+                      <span className="mh-cal-legend-label">Less</span>
+                      {[0.15, 0.3, 0.55, 0.8, 1].map((op, i) => (
+                        <span
+                          key={i}
+                          className="mh-cal-legend-cell"
+                          style={{ opacity: op, background: EMOTION_COLORS[stats.dominant_emotion] || "#ff6b8a" }}
+                        />
+                      ))}
+                      <span className="mh-cal-legend-label">More</span>
+                    </div>
                   </div>
-                  <div className="mh-cal-legend">
-                    <span className="mh-cal-legend-label">Less</span>
-                    {[0.15, 0.3, 0.55, 0.8, 1].map((op, i) => (
-                      <span
-                        key={i}
-                        className="mh-cal-legend-cell"
-                        style={{ opacity: op, background: EMOTION_COLORS[stats.dominant_emotion] || "#ff6b8a" }}
-                      />
+                )}
+
+                {/* ── Recent Entries ── */}
+                <div className="mh-chart-card mh-recent mh-recent-card">
+                  <h3 className="mh-chart-title">🕐 Recent Analyses</h3>
+                  <div className="mh-entries mh-entries--compact">
+                    {history.entries.slice(0, 15).map((entry, i) => (
+                      <div
+                        key={entry.id}
+                        className="mh-entry"
+                        style={{
+                          animationDelay: `${i * 0.04}s`,
+                          "--entry-color": EMOTION_COLORS[entry.base_emotion] || "#888",
+                        }}
+                      >
+                        <div className="mh-entry-left">
+                          <span className="mh-entry-emoji">
+                            {entry.mood_emoji || EMOTION_EMOJIS[entry.base_emotion] || "🎵"}
+                          </span>
+                          <div className="mh-entry-info">
+                            <span className="mh-entry-emotion">{entry.sub_emotion || entry.base_emotion}</span>
+                            <span className="mh-entry-preview">{entry.input_preview}</span>
+                          </div>
+                        </div>
+                        <div className="mh-entry-right">
+                          <div className="mh-entry-meta">
+                            <span
+                              className="mh-entry-badge"
+                              style={{
+                                color: EMOTION_COLORS[entry.base_emotion] || "#888",
+                                borderColor: `${EMOTION_COLORS[entry.base_emotion] || "#888"}33`,
+                                background: `${EMOTION_COLORS[entry.base_emotion] || "#888"}11`,
+                              }}
+                            >
+                              {entry.base_emotion}
+                            </span>
+                            <span className="mh-entry-conf">{entry.confidence}%</span>
+                          </div>
+                          <span className="mh-entry-date">
+                            {new Date(entry.created_at).toLocaleDateString("en-US", {
+                              month: "short", day: "numeric",
+                            })}
+                          </span>
+                        </div>
+                      </div>
                     ))}
-                    <span className="mh-cal-legend-label">More</span>
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* ── Row: Radar + Pie + Confidence ── */}
               <div className="mh-chart-row mh-grid-full">
@@ -627,52 +676,6 @@ export default function HistoryPage() {
                 </div>
               </div>
 
-              {/* ── Recent Entries ── */}
-              <div className="mh-recent">
-                <h3 className="mh-chart-title">🕐 Recent Analyses</h3>
-                <div className="mh-entries">
-                  {history.entries.slice(0, 15).map((entry, i) => (
-                    <div
-                      key={entry.id}
-                      className="mh-entry"
-                      style={{
-                        animationDelay: `${i * 0.04}s`,
-                        "--entry-color": EMOTION_COLORS[entry.base_emotion] || "#888",
-                      }}
-                    >
-                      <div className="mh-entry-left">
-                        <span className="mh-entry-emoji">
-                          {entry.mood_emoji || EMOTION_EMOJIS[entry.base_emotion] || "🎵"}
-                        </span>
-                        <div className="mh-entry-info">
-                          <span className="mh-entry-emotion">{entry.sub_emotion || entry.base_emotion}</span>
-                          <span className="mh-entry-preview">{entry.input_preview}</span>
-                        </div>
-                      </div>
-                      <div className="mh-entry-right">
-                        <div className="mh-entry-meta">
-                          <span
-                            className="mh-entry-badge"
-                            style={{
-                              color: EMOTION_COLORS[entry.base_emotion] || "#888",
-                              borderColor: `${EMOTION_COLORS[entry.base_emotion] || "#888"}33`,
-                              background: `${EMOTION_COLORS[entry.base_emotion] || "#888"}11`,
-                            }}
-                          >
-                            {entry.base_emotion}
-                          </span>
-                          <span className="mh-entry-conf">{entry.confidence}%</span>
-                        </div>
-                        <span className="mh-entry-date">
-                          {new Date(entry.created_at).toLocaleDateString("en-US", {
-                            month: "short", day: "numeric",
-                          })}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
           )}
         </div>

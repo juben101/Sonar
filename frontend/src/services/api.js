@@ -28,6 +28,9 @@ async function request(endpoint, options = {}, _retried = false) {
     if (refreshed) {
       return request(endpoint, options, true);
     }
+    // Refresh failed — session expired, redirect to login
+    window.location.href = "/auth";
+    throw new Error("Session expired. Please log in again.");
   }
 
   if (!response.ok) {
@@ -64,6 +67,8 @@ async function rawRequest(endpoint, options = {}, _retried = false) {
     if (refreshed) {
       return rawRequest(endpoint, options, true);
     }
+    window.location.href = "/auth";
+    throw new Error("Session expired. Please log in again.");
   }
 
   if (!response.ok) {
@@ -139,6 +144,20 @@ export const authApi = {
     api.post("/auth/logout", { refresh_token }),
 
   me: () => api.get("/auth/me"),
+
+  updateProfile: (payload) =>
+    api.put("/auth/profile", payload),
+
+  uploadAvatar: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return rawRequest("/auth/avatar", {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  deleteAccount: () => api.delete("/auth/account"),
 };
 
 // Mood analysis API calls

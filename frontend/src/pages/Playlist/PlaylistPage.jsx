@@ -377,7 +377,7 @@ export default function PlaylistPage() {
                     </button>
                     <button className="pl-ctrl-btn" onClick={handlePrev} aria-label="Previous">
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M3 2h2v12H3V2zm11 6L6 14V2l8 6z" />
+                        <path d="M11 2h2v12h-2V2zM2 8l8 6V2L2 8z" />
                       </svg>
                     </button>
                     <button
@@ -392,7 +392,7 @@ export default function PlaylistPage() {
                     </button>
                     <button className="pl-ctrl-btn" onClick={handleNext} aria-label="Next">
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M11 2h2v12h-2V2zM2 8l8 6V2L2 8z" />
+                        <path d="M3 2h2v12H3V2zm11 6L6 14V2l8 6z" />
                       </svg>
                     </button>
                     <button
